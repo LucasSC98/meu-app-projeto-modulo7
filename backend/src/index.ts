@@ -11,6 +11,7 @@ app.use("/usuarios", rotaUsuarios);
 app.get("/", (req, res) => {
   res.send("Olá, mundo!");
 });
+
 sequelize
   .sync({ alter: true })
   .then(() => {
