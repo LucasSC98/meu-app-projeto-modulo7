@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
+import { validarCPF, validarEmail } from "../utils/validacoes";
 
 class Usuario extends Model {
   public id!: number;
@@ -28,11 +29,26 @@ Usuario.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
+      validate: {
+        isEmail: true,
+        isValidEmail(value: string) {
+          if (!validarEmail(value)) {
+            throw new Error("Email inválido");
+          }
+        },
+      },
     },
     cpf: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
+      validate: {
+        isValidCPF(value: string) {
+          if (!validarCPF(value)) {
+            throw new Error("CPF inválido");
+          }
+        },
+      },
     },
     senha: {
       type: DataTypes.STRING,
