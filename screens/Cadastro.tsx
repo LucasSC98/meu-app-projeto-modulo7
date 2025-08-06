@@ -18,8 +18,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { MaskedTextInput } from "react-native-mask-text";
 import { Input } from "../components/Input";
 import { RootStackParamList } from "../types/navigation";
+
 export default function Cadastro() {
   type CadastroScreenProp = NativeStackNavigationProp<
     RootStackParamList,
@@ -120,14 +122,14 @@ export default function Cadastro() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>CPF</Text>
-            <Input
+            <MaskedTextInput
+              mask="999.999.999-99"
+              onChangeText={setCpfValor}
+              value={cpfValor}
+              keyboardType="numeric"
+              style={styles.input}
               placeholder="000.000.000-00"
               placeholderTextColor="#9CA3AF"
-              maxLength={11}
-              value={cpfValor}
-              onChangeText={setCpfValor}
-              style={styles.input}
-              keyboardType="numeric"
             />
           </View>
 
@@ -177,7 +179,7 @@ export default function Cadastro() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#000000ff",
   },
   scrollView: {
     flex: 1,
