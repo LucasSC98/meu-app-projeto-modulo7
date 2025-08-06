@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   subtitulo: {
     fontSize: 16,
     fontFamily: "NunitoSans_400Regular",
-    color: "#6B7280",
+    color: "#FFFFFF",
     textAlign: "center",
   },
   form: {
@@ -163,6 +163,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingVertical: 32,
     alignItems: "center",
+    bottom: 30,
   },
   loginTexto: {
     fontSize: 14,

@@ -4,6 +4,8 @@ import {
   NunitoSans_700Bold,
   useFonts,
 } from "@expo-google-fonts/nunito-sans";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { cpf as cpfValidator } from "cpf-cnpj-validator";
 import { useState } from "react";
 import {
@@ -17,7 +19,14 @@ import {
   View,
 } from "react-native";
 import { Input } from "../components/Input";
+import { RootStackParamList } from "../types/navigation";
 export default function Cadastro() {
+  type CadastroScreenProp = NativeStackNavigationProp<
+    RootStackParamList,
+    "Cadastro"
+  >;
+  const navigation = useNavigation<CadastroScreenProp>();
+
   const [fontesLoaded] = useFonts({
     NunitoSans_400Regular,
     NunitoSans_600SemiBold,
@@ -154,7 +163,10 @@ export default function Cadastro() {
 
         <View style={styles.footer}>
           <Text style={styles.loginTexto}>
-            Já tem uma conta? <Text style={styles.loginLink}>Entre aqui</Text>
+            Já tem uma conta?{" "}
+            <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+              <Text style={styles.loginLink}>Entre aqui</Text>
+            </TouchableOpacity>
           </Text>
         </View>
       </ScrollView>
@@ -246,5 +258,6 @@ const styles = StyleSheet.create({
     color: "#111827",
     fontWeight: "600",
     fontFamily: "NunitoSans_600SemiBold",
+    top: 5,
   },
 });
