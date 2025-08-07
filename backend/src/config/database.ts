@@ -3,13 +3,9 @@ import { Sequelize } from "sequelize";
 
 dotenv.config();
 
-const sequelize = new Sequelize({
-  dialect: "mysql",
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || "3306", 10),
-  username: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+const sequelize = new Sequelize(process.env.DATABASE_URL as string, {
+  dialect: "postgres",
+  logging: false,
 });
 
 export default sequelize;

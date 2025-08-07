@@ -1,10 +1,13 @@
+import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 
+dotenv.config();
+
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  service: process.env.EMAIL_SERVICE,
   auth: {
-    user: "testeappsc98@gmail.com",
-    pass: "oqps ehxk oftl cfwe",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -14,10 +17,10 @@ export async function enviarEmail(
   texto: string
 ) {
   await transporter.sendMail({
-    from: '"Lucas" <testeappsc98@gmail.com>',
+    from: `${process.env.EMAIL_NOME} <${process.env.EMAIL_USER}>`,
     to: destinatario,
     subject: assunto,
     text: texto,
-    // html: "<b>Mensagem em HTML</b>", // opcional
+    // html: "<b>Mensagem em HTML</b>", // opciona
   });
 }
