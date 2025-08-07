@@ -6,8 +6,8 @@ export const buscarTodosUsuarios = async (req: Request, res: Response) => {
   try {
     const usuarios = await UsuariosModel.findAll();
     res.status(200).json(usuarios);
-  } catch (error) {
-    res.status(500).json({ error: "Erro ao buscar usuários" });
+  } catch (error: any) {
+    res.status(500).json("Erro ao buscar usuários" + error.message);
   }
 };
 
@@ -20,8 +20,8 @@ export const buscarUsuarioPorId = async (req: Request, res: Response) => {
     } else {
       res.status(404).json({ error: "Usuário não encontrado" });
     }
-  } catch (error) {
-    res.status(500).json({ error: "Erro ao buscar usuário" });
+  } catch (error: any) {
+    res.status(500).json("Erro ao buscar usuário " + error.message);
   }
 };
 
@@ -40,8 +40,8 @@ export const criarUsuario = async (req: Request, res: Response) => {
       `Bem-vindo ao nosso serviço!`,
       `Olá ${novoUsuario.nome},\n\nObrigado por se cadastrar! você curte? `
     );
-  } catch (error) {
-    res.status(500).json({ error: "Erro ao criar usuário" });
+  } catch (error: any) {
+    res.status(500).json("Erro ao criar usuário " + error.message);
   }
 };
 
@@ -57,16 +57,14 @@ export const atualizarUsuário = async (
   };
   try {
     if (dadosDoUsuario.nome.lenght < 3) {
-      return res
-        .status(400)
-        .json({
-          error: "Usuário precisa ter mais de 3 caracteres em seu nome",
-        });
+      return res.status(400).json({
+        error: "Usuário precisa ter mais de 3 caracteres em seu nome",
+      });
     }
 
     const usuario = await UsuariosModel.findByPk(req.params.id);
     if (!usuario) {
-      return res.status(404).json({ error: "Usuário não encontrado!" });
+      return res.status(404).json({ error: "Usuário não encontrado" });
     }
 
     usuario.nome = dadosDoUsuario.nome;
@@ -78,5 +76,23 @@ export const atualizarUsuário = async (
     res.status(201).json(usuario);
   } catch (error: any) {
     res.status(500).json("Erro no servidor " + error.message);
+  }
+};
+export const deletarUsuário = async (
+  req: Request<{ id: string }>,
+  res: Response
+) => {
+  try {
+    const usuario = await UsuariosModel.findByPk(req.params.id);
+    if (!usuario) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+
+    await usuario.destroy();
+
+    res.status(204).send();
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json("Problema no servidor " + error.message);
   }
 };

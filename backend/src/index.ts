@@ -1,6 +1,6 @@
 import express from "express";
 import sequelize from "./config/database";
-import rotaUsuarios from "./rotas/rotaUsuarios";
+import rotaUsuarios from "./routes/rotaUsuarios";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
