@@ -1,12 +1,13 @@
 import express from "express";
 import sequelize from "./config/database";
+import rotaLogin from "./routes/rotaLogin";
 import rotaUsuarios from "./routes/rotaUsuarios";
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use("/usuarios", rotaUsuarios);
+app.use("/login", rotaLogin);
 
 app.get("/", (req, res) => {
   res.send("Olá, mundo!");

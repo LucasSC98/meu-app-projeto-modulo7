@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import UsuariosModel from "../models/UsuariosModel";
 import { enviarEmail } from "../utils/smtp";
 
+interface AuthRequest extends Request {
+  usuarioId?: number;
+}
+
 export const buscarTodosUsuarios = async (req: Request, res: Response) => {
   try {
     const usuarios = await UsuariosModel.findAll();
@@ -45,10 +49,7 @@ export const criarUsuario = async (req: Request, res: Response) => {
   }
 };
 
-export const atualizarUsuário = async (
-  req: Request<{ id: number }>,
-  res: Response
-) => {
+export const atualizarUsuário = async (req: AuthRequest, res: Response) => {
   const dadosDoUsuario = {
     nome: req.body.nome,
     email: req.body.email,
