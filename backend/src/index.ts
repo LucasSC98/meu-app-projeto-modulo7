@@ -13,20 +13,20 @@ app.get("/", (req, res) => {
   res.send("Olá, mundo!");
 });
 
-sequelize
-  .sync({ alter: true })
-  .then(() => {
-    console.log("database foi sincronizado com sucesso");
-  })
-  .catch((error) => {
-    console.log("deu zica no bagulho", error);
-  });
-
 async function iniciarAplicacao() {
   await sequelize.authenticate();
   app.listen(PORT, () => {
     console.log(`O servidor está rodando na porta ${PORT}`);
   });
+
+  sequelize
+    .sync({ alter: true })
+    .then(() => {
+      console.log("database foi sincronizado com sucesso");
+    })
+    .catch((error) => {
+      console.log("deu zica no bagulho", error);
+    });
 }
 
 iniciarAplicacao();
