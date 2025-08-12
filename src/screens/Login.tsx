@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
@@ -20,10 +21,37 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
 
-  const handleLogin = () => {
-    // lógica para autenticação
-    console.log("Email:", email);
-    console.log("Senha:", senha);
+  const handleLogin = async () => {
+    try {
+      const response = await fetch("http://10.10.20.171:3000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          senha,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Erro ao fazer login");
+        return;
+      }
+
+      // Salva o token no AsyncStorage
+      await AsyncStorage.setItem("token", data.token);
+
+      console.log("Usuário logado:", data.usuario);
+      console.log("Navegando para a Home");
+
+      navigation.navigate("Home"); // Troque para a tela principal do app
+    } catch (error) {
+      console.error("Erro no login:", error);
+      alert("Erro ao conectar com o servidor");
+    }
   };
 
   return (
@@ -71,7 +99,13 @@ export default function Login() {
             />
           </View>
 
-          <TouchableOpacity style={styles.botao} onPress={handleLogin}>
+          <TouchableOpacity
+            style={styles.botao}
+            onPress={() => {
+              console.log("Botão clicado");
+              handleLogin();
+            }}
+          >
             <Text style={styles.botaoTexto}>Entrar</Text>
           </TouchableOpacity>
         </View>
