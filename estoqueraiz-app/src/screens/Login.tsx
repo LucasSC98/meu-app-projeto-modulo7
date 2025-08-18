@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Input } from "../components/Input";
 import { RootStackParamList } from "../types/navigation";
+import api from "../services/api";
 
 export default function Login() {
   type LoginScreenProp = NativeStackNavigationProp<RootStackParamList, "Login">;
@@ -23,34 +24,23 @@ export default function Login() {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch("http://10.10.20.171:3000/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          senha,
-        }),
+      const response = await api.post("/auth/login", {
+        email,
+        senha,
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (!response.ok) {
-        alert(data.message || "Erro ao fazer login");
-        return;
-      }
-
-      // Salva o token no AsyncStorage
       await AsyncStorage.setItem("token", data.token);
-
-      console.log("Usuário logado:", data.usuario);
-      console.log("Navegando para a Home");
-
-      navigation.navigate("Home"); // Troque para a tela principal do app
-    } catch (error) {
+      await AsyncStorage.setItem("usuario", JSON.stringify(data.usuario));
+      navigation.navigate("Dashboard");
+    } catch (error: any) {
+      if (error.response) {
+        alert(error.response.data.message || "Erro ao fazer login");
+      } else {
+        alert("Erro ao conectar com o servidor");
+      }
       console.error("Erro no login:", error);
-      alert("Erro ao conectar com o servidor");
     }
   };
 
@@ -102,7 +92,6 @@ export default function Login() {
           <TouchableOpacity
             style={styles.botao}
             onPress={() => {
-              console.log("Botão clicado");
               handleLogin();
             }}
           >
@@ -139,22 +128,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   header: {
-    paddingTop: 80,
+    paddingTop: 100,
     paddingBottom: 48,
     alignItems: "center",
+    marginTop: 30,
   },
   titulo: {
     fontSize: 28,
     fontWeight: "700",
     fontFamily: "NunitoSans_700Bold",
     color: "#111827",
-    marginBottom: 8,
+   
   },
   subtitulo: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "NunitoSans_400Regular",
-    color: "#FFFFFF",
+    color: "#044001",
     textAlign: "center",
+    marginBottom: 20,
+    marginTop: 25,
   },
   form: {
     flex: 1,
@@ -170,11 +162,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    height: 52,
+    height: 50,
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 12,
+    borderRadius: 15,
     paddingHorizontal: 16,
     fontSize: 16,
     fontFamily: "NunitoSans_400Regular",

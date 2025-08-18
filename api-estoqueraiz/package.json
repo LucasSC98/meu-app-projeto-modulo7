@@ -12,6 +12,8 @@
   "description": "",
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "cpf-cnpj-validator": "^1.0.3",
     "dotenv": "^17.2.1",
     "email-validator": "^2.0.4",
     "express": "^5.1.0",
