@@ -9,7 +9,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { cpf as cpfValidator } from "cpf-cnpj-validator";
 import { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,6 +20,7 @@ import {
 import { MaskedTextInput } from "react-native-mask-text";
 import { Input } from "../components/Input";
 import { RootStackParamList } from "../types/navigation";
+import Toast from "react-native-toast-message";
 
 export default function Cadastro() {
   type CadastroScreenProp = NativeStackNavigationProp<
@@ -43,21 +43,39 @@ export default function Cadastro() {
 
   async function cadastroUsuario() {
     if (senha !== confirmarSenha) {
-      Alert.alert("Erro", "As senhas precisam ser iguais!");
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "As senhas precisam ser iguais!",
+        position: "top",
+        visibilityTime: 3000,
+      });
       return;
     }
 
     if (!nome || !email || !cpfValor || !senha) {
-      Alert.alert("Erro", "Você precisa preencher todos os campos!");
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Você precisa preencher todos os campos!",
+        position: "top",
+        visibilityTime: 3000,
+      });
       return;
     }
     if (!cpfValidator.isValid(cpfValor)) {
-      Alert.alert("Erro", "Esse cpf é invalido!");
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Esse cpf é invalido!",
+        position: "top",
+        visibilityTime: 3000,
+      });
       return;
     }
 
     try {
-      const resposta = await fetch("http://192.168.1.7:3000/usuarios", {
+      const resposta = await fetch("http://10.10.21.57:3000/usuarios", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome, email, cpf: cpfValor, senha }),
@@ -67,7 +85,13 @@ export default function Cadastro() {
         throw new Error("Houve algo errado ao cadastrar o usuário.");
       }
 
-      Alert.alert("Sucesso", `Seu cadastro foi realizado com sucesso! ${nome}`);
+      Toast.show({
+        type: "success",
+        text1: "Sucesso",
+        text2: `Seu cadastro foi realizado com sucesso! usuario: ${nome}`,
+        position: "top",
+        visibilityTime: 3000,
+      });
       navigation.navigate("Login");
       setNome("");
       setEmail("");
@@ -75,7 +99,13 @@ export default function Cadastro() {
       setSenha("");
       setConfirmarSenha("");
     } catch (error) {
-      Alert.alert("Erro", String(error));
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: String(error),
+        position: "top",
+        visibilityTime: 3000,
+      });
     }
   }
 
