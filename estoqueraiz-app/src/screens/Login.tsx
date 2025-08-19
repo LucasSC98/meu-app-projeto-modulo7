@@ -14,6 +14,7 @@ import {
 import { Input } from "../components/Input";
 import { RootStackParamList } from "../types/navigation";
 import api from "../services/api";
+import Toast from 'react-native-toast-message'; 
 
 export default function Login() {
   type LoginScreenProp = NativeStackNavigationProp<RootStackParamList, "Login">;
@@ -33,14 +34,28 @@ export default function Login() {
 
       await AsyncStorage.setItem("token", data.token);
       await AsyncStorage.setItem("usuario", JSON.stringify(data.usuario));
+      await AsyncStorage.setItem("nome", data.usuario.nome);
+    
       navigation.navigate("Dashboard");
     } catch (error: any) {
       if (error.response) {
-        alert(error.response.data.message || "Erro ao fazer login");
+        Toast.show({
+          type: 'error',
+          text1: 'Erro no Login',
+          text2: error.response.data.message || "Email ou senha incorretos",
+          position: 'bottom',
+          visibilityTime: 4000,
+        });
       } else {
-        alert("Erro ao conectar com o servidor");
+        Toast.show({
+          type: 'error',
+          text1: 'Erro de Conexão',
+          text2: 'Erro de conexão. Verifique sua internet.',
+          position: 'bottom',
+          visibilityTime: 4000,
+        });
       }
-      console.error("Erro no login:", error);
+
     }
   };
 
@@ -138,7 +153,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: "NunitoSans_700Bold",
     color: "#111827",
-   
   },
   subtitulo: {
     fontSize: 15,

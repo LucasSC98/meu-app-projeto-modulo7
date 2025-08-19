@@ -4,11 +4,10 @@ import {
   NunitoSans_700Bold,
   useFonts,
 } from "@expo-google-fonts/nunito-sans";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+// import { useNavigation } from "@react-navigation/native";
+// import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -19,14 +18,15 @@ import {
 } from "react-native";
 import { MaskedTextInput } from "react-native-mask-text";
 import { Input } from "../components/Input";
-import { RootStackParamList } from "../types/navigation";
+import api from "../services/api";
+import Toast from "react-native-toast-message";
 
 export default function CadastroUnidade() {
-  type CadastroScreenProp = NativeStackNavigationProp<
-    RootStackParamList,
-    "CadastroUnidade"
-  >;
-  const navigation = useNavigation<CadastroScreenProp>();
+  // type CadastroScreenProp = NativeStackNavigationProp<
+  //   RootStackParamList,
+  //   "CadastroUnidade"
+  // >;
+  // const navigation = useNavigation<CadastroScreenProp>();
 
   const [fontesLoaded] = useFonts({
     NunitoSans_400Regular,
@@ -35,43 +35,116 @@ export default function CadastroUnidade() {
   });
 
   const [nome, setNome] = useState("");
+  const [descricao, setDescricao] = useState("");
   const [cep, setCep] = useState("");
   const [rua, setRua] = useState("");
   const [bairro, setBairro] = useState("");
   const [numero, setNumero] = useState("");
+  const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const [buscandoCep, setBuscandoCep] = useState(false);
+
+  async function buscarEnderecoPorCep(cepDigitado: string) {
+    const cepLimpo = cepDigitado.replace(/\D/g, "");
+    if (cepLimpo.length !== 8) {
+      return;
+    }
+
+    setBuscandoCep(true);
+
+    try {
+      const resposta = await fetch(
+        `https://viacep.com.br/ws/${cepLimpo}/json/`
+      );
+      const dados = await resposta.json();
+
+      if (dados.erro) {
+        Toast.show({
+          type: "error",
+          text1: "Erro",
+          text2: "CEP não encontrado!",
+          position: "top",
+          visibilityTime: 3000,
+        });
+        return;
+      }
+
+      setRua(dados.logradouro || "");
+      setBairro(dados.bairro || "");
+      setCidade(dados.localidade || "");
+      setEstado(dados.uf || "");
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Não foi possível buscar o CEP. Verifique sua conexão.",
+        position: "top",
+        visibilityTime: 3000,
+      });
+    } finally {
+      setBuscandoCep(false);
+    }
+  }
 
   async function cadastrarUnidade() {
-    if (!nome || !cep || !rua || !bairro || !numero || !estado) {
-      Alert.alert("Erro", "Preencha todos os campos!");
+    if (!nome || !cep || !rua || !bairro || !numero || !cidade || !estado) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Preencha todos os campos obrigatórios!",
+        position: "top",
+        visibilityTime: 3000,
+      });
       return;
     }
 
     try {
-      const resposta = await fetch("http://10.10.21.229:3000/unidades", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, cep, rua, bairro, numero, estado }),
+      const resposta = await api.post("/unidades", {
+        nome,
+        descricao: descricao || null,
+        rua,
+        numero,
+        bairro,
+        cidade,
+        estado,
+        cep,
       });
 
-      if (!resposta.ok) {
+      if (!resposta.data) {
         throw new Error("Erro ao cadastrar a unidade.");
       }
 
-      Alert.alert("Sucesso", "Unidade cadastrada com sucesso!");
+      Toast.show({
+        type: "success",
+        text1: "Sucesso",
+        text2: "Unidade cadastrada com sucesso!",
+        position: "top",
+        visibilityTime: 3000,
+      });
       limparCampos();
-    } catch (error) {
-      Alert.alert("Erro", String(error));
+    } catch (error: any) {
+      const mensagem =
+        error.response?.data?.message || error.message || "Erro desconhecido";
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: `Falha ao cadastrar unidade: ${mensagem}`,
+        position: "top",
+        visibilityTime: 3000,
+      });
     }
   }
 
   function limparCampos() {
     setNome("");
+    setDescricao("");
     setCep("");
     setRua("");
     setBairro("");
     setNumero("");
+    setCidade("");
     setEstado("");
+    setBuscandoCep(false);
   }
 
   if (!fontesLoaded) return null;
@@ -93,9 +166,8 @@ export default function CadastroUnidade() {
         </View>
 
         <View style={styles.form}>
-          {/* Nome da Unidade */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nome Unidade</Text>
+            <Text style={styles.label}>Nome Unidade *</Text>
             <Input
               placeholder="Nome da unidade"
               value={nome}
@@ -104,45 +176,51 @@ export default function CadastroUnidade() {
             />
           </View>
 
-          {/* CEP */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>CEP</Text>
+            <Text style={styles.label}>Descrição</Text>
+            <Input
+              placeholder="Descrição da unidade (opcional)"
+              value={descricao}
+              onChangeText={setDescricao}
+              style={styles.input}
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              CEP * {buscandoCep && "(Buscando...)"}
+            </Text>
             <MaskedTextInput
               mask="99999-999"
               keyboardType="numeric"
               value={cep}
-              onChangeText={setCep}
-              style={styles.input}
+              onChangeText={(texto) => {
+                setCep(texto);
+                buscarEnderecoPorCep(texto);
+              }}
+              style={[styles.input, buscandoCep && styles.inputCarregando]}
               placeholder="00000-000"
               placeholderTextColor="#9CA3AF"
+              editable={!buscandoCep}
             />
           </View>
 
-          {/* Rua */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Rua</Text>
+            <Text style={styles.label}>
+              Rua * {rua && "(Preenchido automaticamente)"}
+            </Text>
             <Input
               placeholder="Nome da rua"
               value={rua}
               onChangeText={setRua}
-              style={styles.input}
+              style={[styles.input, rua && styles.inputPreenchido]}
             />
           </View>
 
-          {/* Bairro */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Bairro</Text>
-            <Input
-              placeholder="Nome do bairro"
-              value={bairro}
-              onChangeText={setBairro}
-              style={styles.input}
-            />
-          </View>
-
-          {/* Número */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Número</Text>
+            <Text style={styles.label}>Número *</Text>
             <Input
               placeholder="Número"
               keyboardType="numeric"
@@ -152,16 +230,41 @@ export default function CadastroUnidade() {
             />
           </View>
 
-          {/* Estado */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Estado</Text>
+            <Text style={styles.label}>
+              Bairro * {bairro && "(Preenchido automaticamente)"}
+            </Text>
+            <Input
+              placeholder="Nome do bairro"
+              value={bairro}
+              onChangeText={setBairro}
+              style={[styles.input, bairro && styles.inputPreenchido]}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Cidade * {cidade && "(Preenchido automaticamente)"}
+            </Text>
+            <Input
+              placeholder="Nome da cidade"
+              value={cidade}
+              onChangeText={setCidade}
+              style={[styles.input, cidade && styles.inputPreenchido]}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              Estado * {estado && "(Preenchido automaticamente)"}
+            </Text>
             <Input
               placeholder="Ex: PR"
               maxLength={2}
               autoCapitalize="characters"
               value={estado}
               onChangeText={setEstado}
-              style={styles.input}
+              style={[styles.input, estado && styles.inputPreenchido]}
             />
           </View>
 
@@ -218,6 +321,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "NunitoSans_400Regular",
     color: "#111827",
+  },
+  inputCarregando: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#F59E0B",
+  },
+  inputPreenchido: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#10B981",
   },
   botaoCadastrar: {
     backgroundColor: "#111827",

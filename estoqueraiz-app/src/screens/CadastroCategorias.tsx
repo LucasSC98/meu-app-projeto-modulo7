@@ -4,11 +4,9 @@ import {
   NunitoSans_700Bold,
   useFonts,
 } from "@expo-google-fonts/nunito-sans";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
 import { useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,14 +16,12 @@ import {
   View,
 } from "react-native";
 import { Input } from "../components/Input";
-import { RootStackParamList } from "../types/navigation";
+
+import api from "../services/api";
+import Toast from 'react-native-toast-message';
 
 export default function CadastroCategoria() {
-  type CadastroScreenProp = NativeStackNavigationProp<
-    RootStackParamList,
-    "CadastroCategoria"
-  >;
-  const navigation = useNavigation<CadastroScreenProp>();
+ 
 
   const [fontesLoaded] = useFonts({
     NunitoSans_400Regular,
@@ -38,25 +34,39 @@ export default function CadastroCategoria() {
 
   async function cadastrarCategoria() {
     if (!nome || !descricao) {
-      Alert.alert("Erro", "Preencha todos os campos!");
+      Toast.show({
+        type: 'error',
+        text1: 'Erro',
+        text2: 'Preencha todos os campos!',
+        position: 'top',
+        visibilityTime: 3000,
+      });
       return;
     }
 
     try {
-      const resposta = await fetch("http://10.10.21.229:3000/categorias", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, descricao }),
-      });
+      const resposta = await api.post("/categorias", { nome, descricao });
 
-      if (!resposta.ok) {
+      if (!resposta.data) {
         throw new Error("Erro ao cadastrar a categoria.");
       }
 
-      Alert.alert("Sucesso", "Categoria cadastrada com sucesso!");
+      Toast.show({
+        type: 'success',
+        text1: 'Sucesso',
+        text2: 'Categoria cadastrada com sucesso!',
+        position: 'top',
+        visibilityTime: 3000,
+      });
       limparCampos();
     } catch (error) {
-      Alert.alert("Erro", String(error));
+      Toast.show({
+        type: 'error',
+        text1: 'Erro',
+        text2: String(error),
+        position: 'top',
+        visibilityTime: 3000,
+      });
     }
   }
 
