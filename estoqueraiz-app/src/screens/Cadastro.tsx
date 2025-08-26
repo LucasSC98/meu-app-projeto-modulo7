@@ -21,6 +21,7 @@ import { MaskedTextInput } from "react-native-mask-text";
 import { Input } from "../components/Input";
 import { RootStackParamList } from "../types/navigation";
 import Toast from "react-native-toast-message";
+import api from "../services/api";
 
 export default function Cadastro() {
   type CadastroScreenProp = NativeStackNavigationProp<
@@ -75,13 +76,14 @@ export default function Cadastro() {
     }
 
     try {
-      const resposta = await fetch("http://10.10.21.57:3000/usuarios", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, email, cpf: cpfValor, senha }),
+      const resposta = await api.post("/usuarios", {
+        nome,
+        email,
+        cpf: cpfValor,
+        senha,
       });
 
-      if (!resposta.ok) {
+      if (!resposta.data) {
         throw new Error("Houve algo errado ao cadastrar o usuário.");
       }
 
