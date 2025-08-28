@@ -9,6 +9,7 @@ class Usuario extends Model {
   public email!: string;
   public senha!: string;
   public cpf!: string;
+  public cargo!: string;
   public async verificarSenha(senha: string): Promise<boolean> {
     return bcrypt.compare(senha, this.senha);
   }
@@ -60,6 +61,10 @@ Usuario.init(
           }
         },
       },
+    },
+    cargo: {
+      type: DataTypes.ENUM("gerente", "estoquista", "financeiro"),
+      allowNull: false,
     },
   },
   {

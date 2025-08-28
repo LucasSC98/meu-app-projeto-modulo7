@@ -23,6 +23,7 @@ const formatarRespostaUsuario = (usuario: UsuariosModelo, token: string) => {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
+      cargo: usuario.cargo,
     },
   };
 };
