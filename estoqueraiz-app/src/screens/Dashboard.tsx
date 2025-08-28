@@ -5,13 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Platform,
   Modal,
   StatusBar,
+  Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
+import LogoAgrologica from "../assets/images/logo.png";
 import api from "../services/api";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -22,6 +22,8 @@ export default function PainelControle() {
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [nomeUsuario, setNomeUsuario] = useState<string | null>(null);
+  const [iniciaisUsuario, setIniciaisUsuario] = useState<string>("");
+  const [cargoUsuario, setCargoUsuario] = useState<string>("Carregando...");
   const [unidades, setUnidades] = useState<any[]>([]);
   const [unidadeSelecionada, setUnidadeSelecionada] = useState<any>(null);
   const [modalVisivel, setModalVisivel] = useState(false);
@@ -31,10 +33,32 @@ export default function PainelControle() {
   const [produtosEstoqueBaixo, setProdutosEstoqueBaixo] = useState<any[]>([]);
   const [carregandoDados, setCarregandoDados] = useState(true);
 
+  const obterIniciais = (nomeCompleto: string): string => {
+    const nomes = nomeCompleto.trim().split(" ");
+    if (nomes.length >= 2) {
+      return (nomes[0][0] + nomes[nomes.length - 1][0]).toUpperCase();
+    }
+    return nomes[0] ? nomes[0][0].toUpperCase() : "";
+  };
+
+  const formatarCargo = (cargo: string): string => {
+    const cargos: { [key: string]: string } = {
+      gerente: "Gerente",
+      estoquista: "Estoquista",
+      financeiro: "Financeiro",
+    };
+    return cargos[cargo] || cargo;
+  };
+
   useEffect(() => {
     async function carregarDadosUsuario() {
       const nome = await AsyncStorage.getItem("nome");
+      const cargo = await AsyncStorage.getItem("cargo");
       setNomeUsuario(nome);
+      setCargoUsuario(cargo ? formatarCargo(cargo) : "Usuário");
+      if (nome) {
+        setIniciaisUsuario(obterIniciais(nome));
+      }
     }
     carregarDadosUsuario();
   }, []);
@@ -113,12 +137,6 @@ export default function PainelControle() {
     }
   }
 
-  const selecionarUnidade = (unidade: any) => {
-    setUnidadeSelecionada(unidade);
-    setModalVisivel(false);
-    carregarDadosUnidade(unidade.id);
-  };
-
   return (
     <ScrollView
       style={estilos.container}
@@ -126,147 +144,292 @@ export default function PainelControle() {
       keyboardShouldPersistTaps="handled"
     >
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <View style={estilos.cabecalho}>
-        <Text style={estilos.tituloCabecalho}>Sistema WMS</Text>
-        <Text style={estilos.subtituloCabecalho}>Controle de Estoque</Text>
-        {nomeUsuario ? (
-          <Text style={estilos.mensagemBoasVindas}>
-            Bem-vindo, {nomeUsuario}!
-          </Text>
-        ) : (
-          <Text style={estilos.mensagemBoasVindas}>Carregando...</Text>
-        )}
+      <View style={estilos.header}>
+        <View style={estilos.containerLogo}>
+          <Image
+            source={LogoAgrologica}
+            style={estilos.logoHeader}
+            resizeMode="contain"
+          />
+        </View>
+
+        <View style={estilos.areaCentral}>
+          <View style={estilos.containerTitulo}>
+            <Text style={estilos.tituloPrincipal}>Controle de Estoque</Text>
+            <View style={estilos.divisor} />
+            <Text style={estilos.subtitulo}>Sistema de Gestão</Text>
+          </View>
+        </View>
+
+        <View style={estilos.containerUsuario}>
+          {nomeUsuario ? (
+            <>
+              <View style={estilos.infoUsuario}>
+                <Text
+                  style={estilos.nomeUsuarioHeader}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {nomeUsuario}
+                </Text>
+                <Text
+                  style={estilos.cargoUsuarioHeader}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {cargoUsuario}
+                </Text>
+              </View>
+              <View style={estilos.avatarUsuario}>
+                <Text style={estilos.iniciaisUsuario}>{iniciaisUsuario}</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={estilos.infoUsuario}>
+                <Text
+                  style={estilos.nomeUsuarioHeader}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  Carregando...
+                </Text>
+                <Text
+                  style={estilos.cargoUsuarioHeader}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  Usuário
+                </Text>
+              </View>
+              <View style={estilos.avatarUsuario}>
+                <Text style={estilos.iniciaisUsuario}>?</Text>
+              </View>
+            </>
+          )}
+        </View>
       </View>
 
-      <View style={{ marginHorizontal: 20, marginTop: 16 }}>
-        <Text style={estilos.tituloSecao}>Unidade</Text>
-        {Platform.OS === "ios" ? (
-          <>
-            <TouchableOpacity
-              style={estilos.containerSeletor}
-              onPress={() => setModalVisivel(true)}
-            >
-              <Text style={estilos.textoSeletor}>
+      <View style={{ marginHorizontal: 24, marginTop: 32 }}>
+        <View style={estilos.secaoHeader}>
+          <MaterialIcons name="location-on" size={20} color="#059669" />
+          <Text style={estilos.tituloSecao}>Unidade Selecionada</Text>
+        </View>
+
+        <TouchableOpacity
+          style={estilos.containerSeletor}
+          onPress={() => setModalVisivel(true)}
+          activeOpacity={0.8}
+        >
+          <View style={estilos.conteudoSeletor}>
+            <View style={estilos.iconeSeletor}>
+              <MaterialIcons
+                name="business"
+                size={18}
+                color={unidadeSelecionada ? "#059669" : "#94a3b8"}
+              />
+            </View>
+            <View style={estilos.textoContainer}>
+              <Text
+                style={[
+                  estilos.textoSeletor,
+                  !unidadeSelecionada && estilos.textoSeletorPlaceholder,
+                ]}
+              >
                 {unidadeSelecionada
                   ? unidadeSelecionada.nome
                   : unidades.length > 0
                   ? "Selecione uma unidade"
-                  : "Carregando..."}
+                  : "Carregando unidades..."}
               </Text>
-              <MaterialIcons name="arrow-drop-down" size={24} color="#666" />
-            </TouchableOpacity>
-
-            <Modal
-              animationType="slide"
-              transparent={true}
-              visible={modalVisivel}
-              onRequestClose={() => setModalVisivel(false)}
-            >
-              <View style={estilos.containerModal}>
-                <View style={estilos.conteudoModal}>
-                  <View style={estilos.cabecalhoModal}>
-                    <Text style={estilos.tituloModal}>Selecionar Unidade</Text>
-                    <TouchableOpacity onPress={() => setModalVisivel(false)}>
-                      <MaterialIcons name="close" size={24} color="#333" />
-                    </TouchableOpacity>
-                  </View>
-                  <ScrollView>
-                    {unidades.map((unidade) => (
-                      <TouchableOpacity
-                        key={unidade.id}
-                        style={[
-                          estilos.opcaoModal,
-                          unidade.id === unidadeSelecionada?.id &&
-                            estilos.opcaoModalSelecionada,
-                        ]}
-                        onPress={() => selecionarUnidade(unidade)}
-                      >
-                        <Text
-                          style={[
-                            estilos.textoOpcaoModal,
-                            unidade.id === unidadeSelecionada?.id &&
-                              estilos.textoOpcaoModalSelecionada,
-                          ]}
-                        >
-                          {unidade.nome}
-                        </Text>
-                        {unidade.id === unidadeSelecionada?.id && (
-                          <MaterialIcons
-                            name="check"
-                            size={20}
-                            color="#2196F3"
-                          />
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              </View>
-            </Modal>
-          </>
-        ) : (
-          <View style={estilos.containerSeletor}>
-            <Picker
-              selectedValue={unidadeSelecionada?.id || ""}
-              onValueChange={(val) => {
-                if (val && val !== "") {
-                  const unidade = unidades.find((u) => u.id === val);
-                  if (unidade) {
-                    setUnidadeSelecionada(unidade);
-                    carregarDadosUnidade(unidade.id);
-                  }
-                } else {
-                  setUnidadeSelecionada(null);
-                }
-              }}
-              style={estilos.seletor}
-              mode="dropdown"
-            >
-              <Picker.Item
-                label={
-                  unidades.length > 0
-                    ? "Selecione uma unidade"
-                    : "Carregando..."
-                }
-                value=""
-              />
-              {unidades.map((unidade) => (
-                <Picker.Item
-                  key={unidade.id}
-                  label={unidade.nome}
-                  value={unidade.id}
-                />
-              ))}
-            </Picker>
+              {unidadeSelecionada && (
+                <Text style={estilos.subtextoSeletor}>
+                  Filial ativa para visualização
+                </Text>
+              )}
+            </View>
+            <MaterialIcons name="expand-more" size={24} color="#64748b" />
           </View>
-        )}
+        </TouchableOpacity>
+
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={modalVisivel}
+          onRequestClose={() => setModalVisivel(false)}
+        >
+          <View style={estilos.containerModal}>
+            <TouchableOpacity
+              style={estilos.overlayModal}
+              activeOpacity={1}
+              onPress={() => setModalVisivel(false)}
+            />
+            <View style={estilos.conteudoModal}>
+              <View style={estilos.cabecalhoModal}>
+                <View style={estilos.tituloModalContainer}>
+                  <MaterialIcons name="business" size={24} color="#059669" />
+                  <Text style={estilos.tituloModal}>Selecionar Unidade</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setModalVisivel(false)}
+                  style={estilos.botaoFecharModal}
+                >
+                  <MaterialIcons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={estilos.separadorModal} />
+
+              <ScrollView
+                style={estilos.listaUnidades}
+                showsVerticalScrollIndicator={false}
+              >
+                <TouchableOpacity
+                  style={[
+                    estilos.itemUnidade,
+                    !unidadeSelecionada && estilos.itemUnidadeSelecionado,
+                  ]}
+                  onPress={() => {
+                    setUnidadeSelecionada(null);
+                    setModalVisivel(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={estilos.iconeItemContainer}>
+                    <MaterialIcons
+                      name="grid-view"
+                      size={20}
+                      color={!unidadeSelecionada ? "#059669" : "#64748b"}
+                    />
+                  </View>
+                  <View style={estilos.conteudoItem}>
+                    <Text
+                      style={[
+                        estilos.nomeUnidade,
+                        !unidadeSelecionada && estilos.nomeUnidadeSelecionado,
+                      ]}
+                    >
+                      Todas as unidades
+                    </Text>
+                    <Text style={estilos.descricaoItem}>
+                      Visualizar dados de todas as filiais
+                    </Text>
+                  </View>
+                  {!unidadeSelecionada && (
+                    <View style={estilos.indicadorSelecionado}>
+                      <MaterialIcons
+                        name="check-circle"
+                        size={20}
+                        color="#059669"
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                {unidades.map((unidade) => (
+                  <TouchableOpacity
+                    key={unidade.id}
+                    style={[
+                      estilos.itemUnidade,
+                      unidadeSelecionada?.id === unidade.id &&
+                        estilos.itemUnidadeSelecionado,
+                    ]}
+                    onPress={() => {
+                      setUnidadeSelecionada(unidade);
+                      carregarDadosUnidade(unidade.id);
+                      setModalVisivel(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={estilos.iconeItemContainer}>
+                      <MaterialIcons
+                        name="store"
+                        size={20}
+                        color={
+                          unidadeSelecionada?.id === unidade.id
+                            ? "#059669"
+                            : "#64748b"
+                        }
+                      />
+                    </View>
+                    <View style={estilos.conteudoItem}>
+                      <Text
+                        style={[
+                          estilos.nomeUnidade,
+                          unidadeSelecionada?.id === unidade.id &&
+                            estilos.nomeUnidadeSelecionado,
+                        ]}
+                      >
+                        {unidade.nome}
+                      </Text>
+                      <Text style={estilos.descricaoItem}>
+                        {unidade.cidade
+                          ? `${unidade.cidade}, ${unidade.estado}`
+                          : "Filial cadastrada"}
+                      </Text>
+                    </View>
+                    {unidadeSelecionada?.id === unidade.id && (
+                      <View style={estilos.indicadorSelecionado}>
+                        <MaterialIcons
+                          name="check-circle"
+                          size={20}
+                          color="#059669"
+                        />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </View>
 
       <View style={estilos.containerResumo}>
-        <View style={[estilos.cartaoResumo, { backgroundColor: "#E3F2FD" }]}>
-          <MaterialIcons name="inventory" size={24} color="#2196F3" />
-          <Text style={estilos.valorCartao}>
-            {carregandoDados ? "..." : totalProdutos}
-          </Text>
-          <Text style={estilos.tituloCartao}>Total de Produtos</Text>
+        <View style={estilos.cartaoResumo}>
+          <View style={[estilos.iconeCartao, { backgroundColor: "#eff6ff" }]}>
+            <MaterialIcons name="inventory-2" size={20} color="#2563eb" />
+          </View>
+          <View style={estilos.conteudoCartao}>
+            <Text style={estilos.valorCartao}>
+              {carregandoDados ? "..." : totalProdutos}
+            </Text>
+            <Text style={estilos.tituloCartao}>Total de Produtos</Text>
+            <Text style={estilos.subtituloCartao}>Itens cadastrados</Text>
+          </View>
         </View>
-        <View style={[estilos.cartaoResumo, { backgroundColor: "#FFEBEE" }]}>
-          <MaterialIcons name="warning" size={24} color="#F44336" />
-          <Text style={estilos.valorCartao}>
-            {carregandoDados ? "..." : produtosVencendo}
-          </Text>
-          <Text style={estilos.tituloCartao}>Produtos Vencendo</Text>
+
+        <View style={estilos.cartaoResumo}>
+          <View style={[estilos.iconeCartao, { backgroundColor: "#fef2f2" }]}>
+            <MaterialIcons name="schedule" size={20} color="#dc2626" />
+          </View>
+          <View style={estilos.conteudoCartao}>
+            <Text style={estilos.valorCartao}>
+              {carregandoDados ? "..." : produtosVencendo}
+            </Text>
+            <Text style={estilos.tituloCartao}>Produtos Vencendo</Text>
+            <Text style={estilos.subtituloCartao}>Próximos ao vencimento</Text>
+          </View>
         </View>
       </View>
 
       <View style={estilos.cartaoABC}>
-        <Text style={estilos.tituloSecao}>Curva ABC</Text>
-        <Text style={estilos.textoSemDados}>Nenhum dado disponível</Text>
+        <View style={estilos.cabecalhoSecao}>
+          <MaterialIcons name="analytics" size={20} color="#059669" />
+          <Text style={estilos.tituloSecao}>Curva ABC</Text>
+        </View>
+        <View style={estilos.conteudoSemDados}>
+          <MaterialIcons name="bar-chart" size={32} color="#94a3b8" />
+          <Text style={estilos.textoSemDados}>Nenhum dado disponível</Text>
+          <Text style={estilos.subtextoSemDados}>
+            Análise será exibida quando houver vendas registradas
+          </Text>
+        </View>
       </View>
 
       <View style={estilos.secao}>
         <View style={estilos.cabecalhoSecao}>
-          <MaterialIcons name="warning" size={20} color="#F44336" />
+          <MaterialIcons name="trending-down" size={20} color="#dc2626" />
           <Text style={estilos.tituloSecao}>Produtos com Estoque Baixo</Text>
         </View>
         {carregandoDados ? (
@@ -303,8 +466,8 @@ export default function PainelControle() {
           <Text style={estilos.textoBotao}>Nova Movimentação</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[estilos.botaoAcao, estilos.botaoSecundario]}>
-          <MaterialIcons name="file-download" size={20} color="#0a0a0aff" />
-          <Text style={[estilos.textoBotao, { color: "#000000ff" }]}>
+          <MaterialIcons name="file-download" size={20} color="#059669" />
+          <Text style={[estilos.textoBotao, { color: "#059669" }]}>
             Exportar Dados
           </Text>
         </TouchableOpacity>
@@ -317,21 +480,21 @@ export default function PainelControle() {
             style={estilos.itemNavegacaoRapida}
             onPress={() => navegacao.navigate("ListaProdutos")}
           >
-            <MaterialIcons name="inventory" size={32} color="#2196F3" />
+            <MaterialIcons name="inventory" size={36} color="#3b82f6" />
             <Text style={estilos.textoNavegacaoRapida}>Lista de Produtos</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={estilos.itemNavegacaoRapida}
             onPress={() => navegacao.navigate("CadastroProduto")}
           >
-            <MaterialIcons name="add-box" size={32} color="#4CAF50" />
+            <MaterialIcons name="add-box" size={36} color="#059669" />
             <Text style={estilos.textoNavegacaoRapida}>Novo Produto</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={estilos.itemNavegacaoRapida}
             onPress={() => navegacao.navigate("CadastroCategoria")}
           >
-            <MaterialIcons name="category" size={32} color="#FF9800" />
+            <MaterialIcons name="category" size={36} color="#f59e0b" />
             <Text style={estilos.textoNavegacaoRapida}>
               Cadastro de Categorias
             </Text>
@@ -340,7 +503,7 @@ export default function PainelControle() {
             style={estilos.itemNavegacaoRapida}
             onPress={() => navegacao.navigate("CadastroUnidade")}
           >
-            <MaterialIcons name="location-on" size={32} color="#0d0d0dff" />
+            <MaterialIcons name="location-on" size={36} color="#8b5cf6" />
             <Text style={estilos.textoNavegacaoRapida}>
               Cadastro de Unidades
             </Text>
@@ -352,60 +515,257 @@ export default function PainelControle() {
 }
 
 const estilos = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
-  cabecalho: {
-    backgroundColor: "#fff",
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  container: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
   },
-  tituloCabecalho: { fontSize: 24, fontWeight: "bold", color: "#333" },
-  subtituloCabecalho: { fontSize: 14, color: "#666", marginTop: 2 },
-  mensagemBoasVindas: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#222822ff",
-    marginTop: 10,
+  cabecalho: {
+    backgroundColor: "#ffffff",
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    elevation: 8,
+    shadowColor: "#1e293b",
+    shadowOffset: { width: 100, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    position: "relative",
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
 
-  containerSeletor: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    marginTop: 8,
-    overflow: "hidden",
-    height: 50,
+  header: {
+    backgroundColor: "#ffffff",
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 15,
+    justifyContent: "center",
+    elevation: 8,
+    shadowColor: "#1e293b",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    borderBottomWidth: 0,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    position: "relative",
+    overflow: "hidden",
   },
-  seletor: {
-    backgroundColor: "#fff",
-    color: "#333",
-    height: 50,
+
+  containerLogo: {
+    position: "absolute",
+    left: 12,
+    top: 50,
+    bottom: 24,
+    justifyContent: "center",
+    alignItems: "flex-start",
+    minWidth: 100,
+  },
+
+  logoHeader: {
+    width: 60,
+    height: 38,
+    borderRadius: 8,
+    shadowColor: "#059669",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+
+  areaCentral: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 130,
+  },
+
+  containerTitulo: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+
+  tituloPrincipal: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1e293b",
+    textAlign: "center",
+    lineHeight: 22,
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.05)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+
+  divisor: {
+    width: 50,
+    height: 3,
+    backgroundColor: "#059669",
+    marginVertical: 6,
+    borderRadius: 2,
+    shadowColor: "#059669",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
+  subtitulo: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+    textAlign: "center",
+    lineHeight: 13,
+    letterSpacing: 0.2,
+  },
+
+  tituloHeader: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e293b",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+
+  tituloHeaderPrincipal: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#059669",
+    textAlign: "center",
+    lineHeight: 18,
+    letterSpacing: 0.3,
+  },
+
+  divisorTitulo: {
+    width: 30,
+    height: 2,
+    backgroundColor: "#059669",
+    marginVertical: 3,
+    borderRadius: 1,
+  },
+
+  subtituloHeader: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#64748b",
+    textAlign: "center",
+    lineHeight: 12,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+
+  containerUsuario: {
+    position: "absolute",
+    right: 12,
+    top: 50,
+    bottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minWidth: 100,
+  },
+
+  infoUsuario: {
+    alignItems: "flex-end",
+    marginRight: 12,
+    maxWidth: 85,
+    paddingVertical: 2,
+  },
+
+  nomeUsuarioHeader: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#1e293b",
+    textAlign: "right",
+    lineHeight: 14,
+    textShadowColor: "rgba(0, 0, 0, 0.05)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+
+  cargoUsuarioHeader: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#64748b",
+    textAlign: "right",
+    marginTop: 2,
+    lineHeight: 12,
+    opacity: 0.8,
+  },
+
+  avatarUsuario: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#059669",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#059669",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: "#ffffff",
+  },
+
+  iniciaisUsuario: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#ffffff",
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  containerSeletor: {
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
+    marginTop: 1,
+    overflow: "hidden",
+    height: 56,
+    shadowColor: "#64748b",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  conteudoSeletor: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    height: "100%",
+    gap: 12,
   },
   textoSeletor: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: 14,
+    color: "#1e293b",
+    fontWeight: "500",
     flex: 1,
+  },
+  textoSeletorPlaceholder: {
+    color: "#94a3b8",
+    fontWeight: "400",
   },
   containerModal: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
+  overlayModal: {
+    flex: 1,
+  },
   conteudoModal: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "50%",
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "70%",
+    paddingBottom: 34,
   },
   cabecalhoModal: {
     flexDirection: "row",
@@ -413,139 +773,299 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: "#f1f5f9",
   },
   tituloModal: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-  },
-  opcaoModal: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  opcaoModalSelecionada: {
-    backgroundColor: "#f0f8ff",
-  },
-  textoOpcaoModal: {
     fontSize: 16,
-    color: "#333",
+    fontWeight: "700",
+    color: "#1e293b",
   },
-  textoOpcaoModalSelecionada: {
-    color: "#2196F3",
+  botaoFecharModal: {
+    padding: 4,
+  },
+  listaUnidades: {
+    maxHeight: 400,
+  },
+  itemUnidade: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f8fafc",
+    gap: 12,
+  },
+  itemUnidadeSelecionado: {
+    backgroundColor: "#f0fdf4",
+    borderBottomColor: "#bbf7d0",
+  },
+  nomeUnidade: {
+    fontSize: 14,
+    color: "#374151",
     fontWeight: "500",
+    flex: 1,
   },
-
+  nomeUnidadeSelecionado: {
+    color: "#059669",
+    fontWeight: "600",
+  },
   containerResumo: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    paddingHorizontal: 15,
-    paddingVertical: 20,
+    justifyContent: "space-between",
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    gap: 12,
   },
   cartaoResumo: {
     flex: 1,
+    flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 5,
-  },
-  valorCartao: { fontSize: 24, fontWeight: "bold", color: "#333" },
-  tituloCartao: { fontSize: 12, color: "#666", fontWeight: "500" },
-  cartaoABC: {
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 16,
-    borderRadius: 12,
-    elevation: 2,
-    alignItems: "center",
-  },
-  secao: {
-    backgroundColor: "#fff",
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 16,
-    borderRadius: 12,
-    elevation: 2,
+    backgroundColor: "#ffffff",
+    padding: 14,
+    borderRadius: 16,
+    marginHorizontal: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+    minHeight: 80,
+  },
+  valorCartao: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginBottom: 2,
+    lineHeight: 20,
+  },
+  tituloCartao: {
+    fontSize: 10,
+    color: "#374151",
+    fontWeight: "600",
+    lineHeight: 14,
+  },
+  cartaoABC: {
+    backgroundColor: "#ffffff",
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 20,
+    elevation: 6,
+    alignItems: "center",
+    shadowColor: "#64748b",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
+  },
+  secao: {
+    backgroundColor: "#ffffff",
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 20,
+    elevation: 6,
+    shadowColor: "#64748b",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   cabecalhoSecao: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
   tituloSecao: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginLeft: 8,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginLeft: 12,
+    letterSpacing: 0.3,
   },
   cartaoProduto: {
-    backgroundColor: "#fff",
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    borderColor: "#e2e8f0",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#ef4444",
   },
-  nomeProduto: { fontSize: 14, fontWeight: "500", color: "#333" },
-  detalhesProduto: { fontSize: 12, color: "#666", marginBottom: 2 },
-  botoesAcao: { paddingHorizontal: 20, marginBottom: 20, gap: 10 },
+  nomeProduto: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+  detalhesProduto: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 3,
+    lineHeight: 18,
+  },
+  botoesAcao: {
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    gap: 16,
+  },
   botaoAcao: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    gap: 8,
-    marginBottom: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 12,
+    marginBottom: 0,
+    shadowColor: "#64748b",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  botaoPrimario: { backgroundColor: "#0b0b0bff" },
+  botaoPrimario: {
+    backgroundColor: "#059669",
+  },
   botaoSecundario: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#101213ff",
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: "#059669",
   },
-  textoBotao: { fontSize: 14, fontWeight: "500", color: "#fff" },
-  navegacaoRapida: { paddingHorizontal: 20, paddingBottom: 30 },
+  textoBotao: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#ffffff",
+    letterSpacing: 0.3,
+  },
+  navegacaoRapida: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
   gradeNavegacaoRapida: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginTop: 16,
+    marginTop: 20,
+    gap: 16,
   },
   itemNavegacaoRapida: {
-    width: "48%",
-    backgroundColor: "#fff",
-    padding: 20,
-    borderRadius: 12,
+    width: "47%",
+    backgroundColor: "#ffffff",
+    padding: 24,
+    borderRadius: 20,
     alignItems: "center",
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    marginBottom: 0,
+    elevation: 6,
+    shadowColor: "#64748b",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
   textoNavegacaoRapida: {
-    fontSize: 12,
-    color: "#333",
+    fontSize: 13,
+    color: "#1e293b",
     textAlign: "center",
-    marginTop: 8,
-    fontWeight: "500",
+    marginTop: 12,
+    fontWeight: "600",
+    lineHeight: 18,
   },
   textoSemDados: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: 16,
+    color: "#94a3b8",
     textAlign: "center",
-    marginTop: 20,
+    marginTop: 24,
+    fontStyle: "italic",
+  },
+
+  secaoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  iconeSeletor: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#f8fafc",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textoContainer: {
+    flex: 1,
+    justifyContent: "center",
+    paddingVertical: 2,
+  },
+  subtextoSeletor: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  tituloModalContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  separadorModal: {
+    height: 1,
+    backgroundColor: "#f1f5f9",
+    marginHorizontal: 20,
+  },
+  iconeItemContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f8fafc",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  conteudoItem: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  descricaoItem: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  indicadorSelecionado: {
+    marginLeft: 8,
+  },
+  iconeCartao: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  conteudoCartao: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: "center",
+  },
+  subtituloCartao: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 1,
+    lineHeight: 12,
+  },
+  conteudoSemDados: {
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  subtextoSemDados: {
+    fontSize: 13,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginTop: 4,
   },
 });
