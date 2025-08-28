@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import sequelize from "./config/database";
 import rotaLogin from "./routes/rotaLogin";
 import rotaUsuarios from "./routes/rotaUsuarios";
@@ -27,6 +28,15 @@ const swaggerOptions = {
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 
+// Configuração CORS para permitir requisições do app móvel
+app.use(
+  cors({
+    origin: "*", // Permite qualquer origem
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json());
 app.use("/usuarios", rotaUsuarios);
 app.use(rotaLogin);
@@ -46,9 +56,6 @@ async function iniciarAplicacao() {
     app.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);
     });
-
-    await sequelize.sync({ alter: true });
-    console.log("Banco de dados sincronizado com sucesso!");
   } catch (error) {
     console.error("Erro ao iniciar aplicação:", error);
   }
