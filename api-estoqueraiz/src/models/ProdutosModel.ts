@@ -18,13 +18,11 @@ class Produto extends Model {
   public localizacao?: string;
   public imagem_url?: string;
   public ativo!: boolean;
-  
-  // Foreign Keys
+
   public categoria_id!: number;
   public unidade_id!: number;
   public usuario_id!: number;
-  
-  // Timestamps
+
   public readonly criado_em!: Date;
   public readonly atualizado_em!: Date;
 }
@@ -52,12 +50,12 @@ Produto.init(
     preco_custo: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      defaultValue: 0.00,
+      defaultValue: 0.0,
     },
     preco_venda: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      defaultValue: 0.00,
+      defaultValue: 0.0,
     },
     quantidade_estoque: {
       type: DataTypes.INTEGER,
@@ -97,7 +95,7 @@ Produto.init(
       allowNull: false,
       references: {
         model: Categoria,
-        key: 'id',
+        key: "id",
       },
     },
     unidade_id: {
@@ -105,7 +103,7 @@ Produto.init(
       allowNull: false,
       references: {
         model: Unidade,
-        key: 'id',
+        key: "id",
       },
     },
     usuario_id: {
@@ -113,7 +111,7 @@ Produto.init(
       allowNull: false,
       references: {
         model: Usuario,
-        key: 'id',
+        key: "id",
       },
     },
   },
@@ -128,33 +126,33 @@ Produto.init(
 );
 
 Produto.belongsTo(Categoria, {
-  foreignKey: 'categoria_id',
-  as: 'categoria',
+  foreignKey: "categoria_id",
+  as: "categoria",
 });
 
 Produto.belongsTo(Unidade, {
-  foreignKey: 'unidade_id',
-  as: 'unidade',
+  foreignKey: "unidade_id",
+  as: "unidade",
 });
 
 Produto.belongsTo(Usuario, {
-  foreignKey: 'usuario_id',
-  as: 'usuario',
+  foreignKey: "usuario_id",
+  as: "usuario",
 });
 
 Categoria.hasMany(Produto, {
-  foreignKey: 'categoria_id',
-  as: 'produtos',
+  foreignKey: "categoria_id",
+  as: "produtos",
 });
 
 Unidade.hasMany(Produto, {
-  foreignKey: 'unidade_id',
-  as: 'produtos',
+  foreignKey: "unidade_id",
+  as: "produtos",
 });
 
 Usuario.hasMany(Produto, {
-  foreignKey: 'usuario_id',
-  as: 'produtos',
+  foreignKey: "usuario_id",
+  as: "produtos",
 });
 
 export default Produto;
