@@ -506,6 +506,15 @@ export default function CadastroProduto() {
               </View>
             </>
           )}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Código de Barras</Text>
+            <Input
+              placeholder="Código de barras (opcional)"
+              value={codigoBarras}
+              onChangeText={setCodigoBarras}
+              style={styles.input}
+            />
+          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nome *</Text>
@@ -525,16 +534,6 @@ export default function CadastroProduto() {
               onChangeText={setDescricao}
               style={[styles.input, { height: 100, textAlignVertical: "top" }]}
               multiline
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Código de Barras</Text>
-            <Input
-              placeholder="Código de barras (opcional)"
-              value={codigoBarras}
-              onChangeText={setCodigoBarras}
-              style={styles.input}
             />
           </View>
 

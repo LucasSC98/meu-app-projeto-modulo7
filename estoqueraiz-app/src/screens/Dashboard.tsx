@@ -155,7 +155,9 @@ export default function PainelControle() {
 
         <View style={estilos.areaCentral}>
           <View style={estilos.containerTitulo}>
-            <Text style={estilos.tituloPrincipal}>Controle de Estoque</Text>
+            <Text style={estilos.tituloPrincipal}>
+              Controle{"\n"}de{"\n"}Estoque
+            </Text>
             <View style={estilos.divisor} />
             <Text style={estilos.subtitulo}>Sistema de Gestão</Text>
           </View>
@@ -224,8 +226,8 @@ export default function PainelControle() {
           <View style={estilos.conteudoSeletor}>
             <View style={estilos.iconeSeletor}>
               <MaterialIcons
-                name="business"
-                size={18}
+                name="warehouse"
+                size={15}
                 color={unidadeSelecionada ? "#059669" : "#94a3b8"}
               />
             </View>
@@ -235,6 +237,8 @@ export default function PainelControle() {
                   estilos.textoSeletor,
                   !unidadeSelecionada && estilos.textoSeletorPlaceholder,
                 ]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 {unidadeSelecionada
                   ? unidadeSelecionada.nome
@@ -242,11 +246,6 @@ export default function PainelControle() {
                   ? "Selecione uma unidade"
                   : "Carregando unidades..."}
               </Text>
-              {unidadeSelecionada && (
-                <Text style={estilos.subtextoSeletor}>
-                  Filial ativa para visualização
-                </Text>
-              )}
             </View>
             <MaterialIcons name="expand-more" size={24} color="#64748b" />
           </View>
@@ -267,7 +266,7 @@ export default function PainelControle() {
             <View style={estilos.conteudoModal}>
               <View style={estilos.cabecalhoModal}>
                 <View style={estilos.tituloModalContainer}>
-                  <MaterialIcons name="business" size={24} color="#059669" />
+                  <MaterialIcons name="warehouse" size={24} color="#059669" />
                   <Text style={estilos.tituloModal}>Selecionar Unidade</Text>
                 </View>
                 <TouchableOpacity
@@ -343,8 +342,8 @@ export default function PainelControle() {
                   >
                     <View style={estilos.iconeItemContainer}>
                       <MaterialIcons
-                        name="store"
-                        size={20}
+                        name="warehouse"
+                        size={15}
                         color={
                           unidadeSelecionada?.id === unidade.id
                             ? "#059669"
@@ -501,12 +500,10 @@ export default function PainelControle() {
           </TouchableOpacity>
           <TouchableOpacity
             style={estilos.itemNavegacaoRapida}
-            onPress={() => navegacao.navigate("CadastroUnidade")}
+            onPress={() => navegacao.navigate("MapaUnidades")}
           >
             <MaterialIcons name="location-on" size={36} color="#8b5cf6" />
-            <Text style={estilos.textoNavegacaoRapida}>
-              Cadastro de Unidades
-            </Text>
+            <Text style={estilos.textoNavegacaoRapida}>Unidades</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -518,20 +515,6 @@ const estilos = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-  },
-  cabecalho: {
-    backgroundColor: "#ffffff",
-    paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    elevation: 8,
-    shadowColor: "#1e293b",
-    shadowOffset: { width: 100, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    position: "relative",
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
   },
 
   header: {
@@ -562,17 +545,18 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "flex-start",
     minWidth: 100,
+    backgroundColor: "transparent",
   },
 
   logoHeader: {
     width: 60,
     height: 38,
-    borderRadius: 8,
-    shadowColor: "#059669",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    backgroundColor: "transparent",
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
 
   areaCentral: {
@@ -586,6 +570,7 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 4,
+    maxWidth: 120,
   },
 
   tituloPrincipal: {
@@ -593,11 +578,12 @@ const estilos = StyleSheet.create({
     fontWeight: "800",
     color: "#1e293b",
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 20,
     letterSpacing: 0.5,
     textShadowColor: "rgba(0, 0, 0, 0.05)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    width: 100,
   },
 
   divisor: {
@@ -620,41 +606,6 @@ const estilos = StyleSheet.create({
     textAlign: "center",
     lineHeight: 13,
     letterSpacing: 0.2,
-  },
-
-  tituloHeader: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1e293b",
-    textAlign: "center",
-    lineHeight: 18,
-  },
-
-  tituloHeaderPrincipal: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#059669",
-    textAlign: "center",
-    lineHeight: 18,
-    letterSpacing: 0.3,
-  },
-
-  divisorTitulo: {
-    width: 30,
-    height: 2,
-    backgroundColor: "#059669",
-    marginVertical: 3,
-    borderRadius: 1,
-  },
-
-  subtituloHeader: {
-    fontSize: 10,
-    fontWeight: "500",
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 12,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
   },
 
   containerUsuario: {
@@ -720,6 +671,7 @@ const estilos = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
+
   containerSeletor: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
@@ -727,39 +679,44 @@ const estilos = StyleSheet.create({
     borderColor: "#e2e8f0",
     marginTop: 1,
     overflow: "hidden",
-    height: 56,
+    minHeight: 54,
     shadowColor: "#64748b",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
   },
+
   conteudoSeletor: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    height: "100%",
+    paddingVertical: 12,
+    minHeight: 54,
     gap: 12,
   },
+
   textoSeletor: {
     fontSize: 14,
     color: "#1e293b",
     fontWeight: "500",
-    flex: 1,
   },
+
   textoSeletorPlaceholder: {
     color: "#94a3b8",
     fontWeight: "400",
   },
+
   containerModal: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
   },
+
   overlayModal: {
     flex: 1,
   },
+
   conteudoModal: {
     backgroundColor: "#ffffff",
     borderTopLeftRadius: 24,
@@ -767,6 +724,7 @@ const estilos = StyleSheet.create({
     maxHeight: "70%",
     paddingBottom: 34,
   },
+
   cabecalhoModal: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -775,17 +733,21 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
+
   tituloModal: {
     fontSize: 16,
     fontWeight: "700",
     color: "#1e293b",
   },
+
   botaoFecharModal: {
     padding: 4,
   },
+
   listaUnidades: {
     maxHeight: 400,
   },
+
   itemUnidade: {
     flexDirection: "row",
     alignItems: "center",
@@ -794,21 +756,27 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f8fafc",
     gap: 12,
+    minHeight: 60, // Altura mínima para evitar cortes
   },
+
   itemUnidadeSelecionado: {
     backgroundColor: "#f0fdf4",
     borderBottomColor: "#bbf7d0",
   },
+
   nomeUnidade: {
     fontSize: 14,
     color: "#374151",
     fontWeight: "500",
     flex: 1,
+    lineHeight: 18, // Melhor espaçamento do texto
   },
+
   nomeUnidadeSelecionado: {
     color: "#059669",
     fontWeight: "600",
   },
+
   containerResumo: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -816,6 +784,7 @@ const estilos = StyleSheet.create({
     paddingVertical: 16,
     gap: 12,
   },
+
   cartaoResumo: {
     flex: 1,
     flexDirection: "row",
@@ -833,6 +802,7 @@ const estilos = StyleSheet.create({
     borderColor: "#f1f5f9",
     minHeight: 80,
   },
+
   valorCartao: {
     fontSize: 18,
     fontWeight: "700",
@@ -840,12 +810,14 @@ const estilos = StyleSheet.create({
     marginBottom: 2,
     lineHeight: 20,
   },
+
   tituloCartao: {
     fontSize: 10,
     color: "#374151",
     fontWeight: "600",
     lineHeight: 14,
   },
+
   cartaoABC: {
     backgroundColor: "#ffffff",
     marginHorizontal: 24,
@@ -861,6 +833,7 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
+
   secao: {
     backgroundColor: "#ffffff",
     marginHorizontal: 24,
@@ -873,6 +846,7 @@ const estilos = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
   },
+
   cabecalhoSecao: {
     flexDirection: "row",
     alignItems: "center",
@@ -881,6 +855,7 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
+
   tituloSecao: {
     fontSize: 15,
     fontWeight: "700",
@@ -888,6 +863,7 @@ const estilos = StyleSheet.create({
     marginLeft: 12,
     letterSpacing: 0.3,
   },
+
   cartaoProduto: {
     backgroundColor: "#f8fafc",
     borderWidth: 1,
@@ -898,23 +874,27 @@ const estilos = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#ef4444",
   },
+
   nomeProduto: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1e293b",
     marginBottom: 4,
   },
+
   detalhesProduto: {
     fontSize: 13,
     color: "#64748b",
     marginBottom: 3,
     lineHeight: 18,
   },
+
   botoesAcao: {
     paddingHorizontal: 24,
     marginBottom: 24,
     gap: 16,
   },
+
   botaoAcao: {
     flexDirection: "row",
     alignItems: "center",
@@ -930,24 +910,29 @@ const estilos = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+
   botaoPrimario: {
     backgroundColor: "#059669",
   },
+
   botaoSecundario: {
     backgroundColor: "#ffffff",
     borderWidth: 2,
     borderColor: "#059669",
   },
+
   textoBotao: {
     fontSize: 16,
     fontWeight: "600",
     color: "#ffffff",
     letterSpacing: 0.3,
   },
+
   navegacaoRapida: {
     paddingHorizontal: 24,
     paddingBottom: 40,
   },
+
   gradeNavegacaoRapida: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -955,6 +940,7 @@ const estilos = StyleSheet.create({
     marginTop: 20,
     gap: 16,
   },
+
   itemNavegacaoRapida: {
     width: "47%",
     backgroundColor: "#ffffff",
@@ -970,6 +956,7 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f1f5f9",
   },
+
   textoNavegacaoRapida: {
     fontSize: 13,
     color: "#1e293b",
@@ -978,6 +965,7 @@ const estilos = StyleSheet.create({
     fontWeight: "600",
     lineHeight: 18,
   },
+
   textoSemDados: {
     fontSize: 16,
     color: "#94a3b8",
@@ -991,6 +979,7 @@ const estilos = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+
   iconeSeletor: {
     width: 36,
     height: 36,
@@ -999,26 +988,25 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   textoContainer: {
     flex: 1,
     justifyContent: "center",
-    paddingVertical: 2,
+    paddingVertical: 4, // Padding vertical para melhor espaçamento
   },
-  subtextoSeletor: {
-    fontSize: 12,
-    color: "#64748b",
-    marginTop: 4,
-  },
+
   tituloModalContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
+
   separadorModal: {
     height: 1,
     backgroundColor: "#f1f5f9",
     marginHorizontal: 20,
   },
+
   iconeItemContainer: {
     width: 40,
     height: 40,
@@ -1027,18 +1015,24 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   conteudoItem: {
     flex: 1,
     marginLeft: 12,
+    paddingVertical: 4, // Padding para melhor espaçamento vertical
   },
+
   descricaoItem: {
     fontSize: 13,
     color: "#64748b",
     marginTop: 2,
+    lineHeight: 16, // Melhor espaçamento
   },
+
   indicadorSelecionado: {
     marginLeft: 8,
   },
+
   iconeCartao: {
     width: 40,
     height: 40,
@@ -1046,22 +1040,26 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+
   conteudoCartao: {
     flex: 1,
     marginLeft: 12,
     justifyContent: "center",
   },
+
   subtituloCartao: {
     fontSize: 10,
     color: "#64748b",
     marginTop: 1,
     lineHeight: 12,
   },
+
   conteudoSemDados: {
     alignItems: "center",
     paddingVertical: 32,
     paddingHorizontal: 20,
   },
+
   subtextoSemDados: {
     fontSize: 13,
     color: "#94a3b8",
