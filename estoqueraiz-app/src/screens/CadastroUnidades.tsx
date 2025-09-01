@@ -152,23 +152,18 @@ export default function CadastroUnidade() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.botaoVoltar}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
           <View style={styles.headerTextos}>
             <Text style={styles.titulo}>Cadastro de Unidade</Text>
             <Text style={styles.subtitulo}>
               Preencha os dados da nova filial
             </Text>
           </View>
-
-          <TouchableOpacity
-            style={styles.botaoMapa}
-            onPress={() => navigation.navigate("MapaUnidades")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.iconeMapaContainer}>
-              <MaterialIcons name="map" size={20} color="#059669" />
-            </View>
-            <Text style={styles.textoMapa}>Ver Mapa</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -362,6 +357,9 @@ const styles = StyleSheet.create({
   },
   headerTextos: {
     flex: 1,
+  },
+  botaoVoltar: {
+    marginRight: 16,
   },
   titulo: {
     fontSize: 24,
