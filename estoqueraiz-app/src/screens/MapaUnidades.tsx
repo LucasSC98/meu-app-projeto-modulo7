@@ -84,7 +84,6 @@ export default function MapaUnidades() {
       } catch (err) {
         console.error("Erro ao abrir o mapa:", err);
 
-        // Evita múltiplos toasts
         Toast.hide();
 
         Toast.show({

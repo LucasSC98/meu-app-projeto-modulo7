@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -27,11 +27,14 @@ export default function PainelControle() {
   const [unidades, setUnidades] = useState<any[]>([]);
   const [unidadeSelecionada, setUnidadeSelecionada] = useState<any>(null);
   const [modalVisivel, setModalVisivel] = useState(false);
+  const [podeAcessarTodasUnidades, setPodeAcessarTodasUnidades] =
+    useState(false);
 
   const [totalProdutos, setTotalProdutos] = useState(0);
   const [produtosVencendo, setProdutosVencendo] = useState(0);
   const [produtosEstoqueBaixo, setProdutosEstoqueBaixo] = useState<any[]>([]);
   const [carregandoDados, setCarregandoDados] = useState(true);
+  const [unidadeUsuario, setUnidadeUsuario] = useState<any>(null);
 
   const obterIniciais = (nomeCompleto: string): string => {
     const nomes = nomeCompleto.trim().split(" ");
@@ -50,68 +53,85 @@ export default function PainelControle() {
     return cargos[cargo] || cargo;
   };
 
-  useEffect(() => {
-    async function carregarDadosUsuario() {
+  const carregarDadosUsuario = useCallback(async () => {
+    try {
       const nome = await AsyncStorage.getItem("nome");
       const cargo = await AsyncStorage.getItem("cargo");
+      const usuarioString = await AsyncStorage.getItem("usuario");
+
+      if (!usuarioString) {
+        console.error("Usuário não encontrado no AsyncStorage");
+        return;
+      }
+
+      const usuario = JSON.parse(usuarioString);
       setNomeUsuario(nome);
       setCargoUsuario(cargo ? formatarCargo(cargo) : "Usuário");
+
+      const podeAcessarTodas = cargo === "gerente";
+      setPodeAcessarTodasUnidades(podeAcessarTodas);
+
       if (nome) {
         setIniciaisUsuario(obterIniciais(nome));
       }
-    }
-    carregarDadosUsuario();
-  }, []);
-
-  useEffect(() => {
-    carregarDadosDashboard();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function carregarDadosDashboard() {
-    try {
-      setCarregandoDados(true);
 
       const responseUnidades = await api.get("/unidades");
       const unidadesData = responseUnidades.data;
       setUnidades(unidadesData);
 
-      if (unidadesData.length > 0 && !unidadeSelecionada) {
-        setUnidadeSelecionada(unidadesData[0]);
-        await carregarDadosUnidade(unidadesData[0].id);
-        return;
+      const unidadeDoUsuario = unidadesData.find(
+        (u: any) => u.id === usuario.unidade_id
+      );
+      if (unidadeDoUsuario) {
+        setUnidadeUsuario(unidadeDoUsuario);
+        setUnidadeSelecionada(unidadeDoUsuario);
+      } else {
+        console.error("Unidade do usuário não encontrada");
       }
+    } catch (error) {
+      console.error("Erro ao carregar dados do usuário:", error);
+    }
+  }, []);
 
-      const responseProdutos = await api.get("/produtos");
-      const produtos = responseProdutos.data;
-      setTotalProdutos(produtos.length);
+  useEffect(() => {
+    carregarDadosUsuario();
+  }, [carregarDadosUsuario]);
 
-      const hoje = new Date();
-      const em30Dias = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
+  useEffect(() => {
+    if (unidadeSelecionada) {
+      carregarDadosDashboard();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unidadeSelecionada]);
 
-      const produtosVencendoCount = produtos.filter((produto: any) => {
-        if (!produto.data_validade) return false;
-        const dataValidade = new Date(produto.data_validade);
-        return dataValidade <= em30Dias && dataValidade >= hoje;
-      }).length;
+  async function carregarDadosDashboard() {
+    try {
+      setCarregandoDados(true);
 
-      setProdutosVencendo(produtosVencendoCount);
-
-      const responseEstoqueBaixo = await api.get("/produtos/estoque/baixo");
-      setProdutosEstoqueBaixo(responseEstoqueBaixo.data);
+      if (unidadeSelecionada) {
+        await carregarDadosUnidade(unidadeSelecionada.id);
+      } else {
+        if (unidadeUsuario) {
+          setUnidadeSelecionada(unidadeUsuario);
+          await carregarDadosUnidade(unidadeUsuario.id);
+        }
+      }
     } catch (error) {
       console.error("Erro ao carregar dados do dashboard:", error);
     } finally {
       setCarregandoDados(false);
     }
   }
-
   async function carregarDadosUnidade(unidadeId: number) {
     try {
       setCarregandoDados(true);
 
       const responseProdutos = await api.get(`/produtos/unidade/${unidadeId}`);
-      const produtos = responseProdutos.data;
+      const produtos = Array.isArray(responseProdutos.data)
+        ? responseProdutos.data.filter(
+            (produto: any) => produto.quantidade_estoque > 0
+          )
+        : [];
       setTotalProdutos(produtos.length);
 
       const hoje = new Date();
@@ -126,9 +146,12 @@ export default function PainelControle() {
       setProdutosVencendo(produtosVencendoCount);
 
       const responseEstoqueBaixo = await api.get("/produtos/estoque/baixo");
-      const produtosBaixoUnidade = responseEstoqueBaixo.data.filter(
-        (produto: any) => produto.unidade_id === unidadeId
-      );
+      const produtosBaixoUnidade = Array.isArray(responseEstoqueBaixo.data)
+        ? responseEstoqueBaixo.data.filter(
+            (produto: any) =>
+              produto.quantidade_estoque > 0 && produto.unidade_id === unidadeId
+          )
+        : [];
       setProdutosEstoqueBaixo(produtosBaixoUnidade);
     } catch (error) {
       console.error("Erro ao carregar dados da unidade:", error);
@@ -215,159 +238,131 @@ export default function PainelControle() {
       <View style={{ marginHorizontal: 24, marginTop: 32 }}>
         <View style={estilos.secaoHeader}>
           <MaterialIcons name="location-on" size={20} color="#059669" />
-          <Text style={estilos.tituloSecao}>Unidade Selecionada</Text>
+          <Text style={estilos.tituloSecao}>
+            {podeAcessarTodasUnidades ? "Unidade Selecionada" : "Sua Unidade"}
+          </Text>
         </View>
 
-        <TouchableOpacity
-          style={estilos.containerSeletor}
-          onPress={() => setModalVisivel(true)}
-          activeOpacity={0.8}
-        >
-          <View style={estilos.conteudoSeletor}>
-            <View style={estilos.iconeSeletor}>
-              <MaterialIcons
-                name="warehouse"
-                size={15}
-                color={unidadeSelecionada ? "#059669" : "#94a3b8"}
-              />
-            </View>
-            <View style={estilos.textoContainer}>
-              <Text
-                style={[
-                  estilos.textoSeletor,
-                  !unidadeSelecionada && estilos.textoSeletorPlaceholder,
-                ]}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-              >
-                {unidadeSelecionada
-                  ? unidadeSelecionada.nome
-                  : unidades.length > 0
-                  ? "Selecione uma unidade"
-                  : "Carregando unidades..."}
-              </Text>
-            </View>
-            <MaterialIcons name="expand-more" size={24} color="#64748b" />
-          </View>
-        </TouchableOpacity>
-
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={modalVisivel}
-          onRequestClose={() => setModalVisivel(false)}
-        >
-          <View style={estilos.containerModal}>
-            <TouchableOpacity
-              style={estilos.overlayModal}
-              activeOpacity={1}
-              onPress={() => setModalVisivel(false)}
-            />
-            <View style={estilos.conteudoModal}>
-              <View style={estilos.cabecalhoModal}>
-                <View style={estilos.tituloModalContainer}>
-                  <MaterialIcons name="warehouse" size={24} color="#059669" />
-                  <Text style={estilos.tituloModal}>Selecionar Unidade</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setModalVisivel(false)}
-                  style={estilos.botaoFecharModal}
-                >
-                  <MaterialIcons name="close" size={24} color="#64748b" />
-                </TouchableOpacity>
+        {podeAcessarTodasUnidades && unidades.length > 1 ? (
+          <TouchableOpacity
+            style={estilos.containerSeletor}
+            onPress={() => setModalVisivel(true)}
+            activeOpacity={0.8}
+          >
+            <View style={estilos.conteudoSeletor}>
+              <View style={estilos.iconeSeletor}>
+                <MaterialIcons
+                  name="warehouse"
+                  size={15}
+                  color={unidadeSelecionada ? "#059669" : "#94a3b8"}
+                />
               </View>
-
-              <View style={estilos.separadorModal} />
-
-              <ScrollView
-                style={estilos.listaUnidades}
-                showsVerticalScrollIndicator={false}
-              >
-                <TouchableOpacity
+              <View style={estilos.textoContainer}>
+                <Text
                   style={[
-                    estilos.itemUnidade,
-                    !unidadeSelecionada && estilos.itemUnidadeSelecionado,
+                    estilos.textoSeletor,
+                    !unidadeSelecionada && estilos.textoSeletorPlaceholder,
                   ]}
-                  onPress={() => {
-                    setUnidadeSelecionada(null);
-                    setModalVisivel(false);
-                  }}
-                  activeOpacity={0.7}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
                 >
-                  <View style={estilos.iconeItemContainer}>
-                    <MaterialIcons
-                      name="grid-view"
-                      size={20}
-                      color={!unidadeSelecionada ? "#059669" : "#64748b"}
-                    />
-                  </View>
-                  <View style={estilos.conteudoItem}>
-                    <Text
-                      style={[
-                        estilos.nomeUnidade,
-                        !unidadeSelecionada && estilos.nomeUnidadeSelecionado,
-                      ]}
-                    >
-                      Todas as unidades
-                    </Text>
-                    <Text style={estilos.descricaoItem}>
-                      Visualizar dados de todas as filiais
-                    </Text>
-                  </View>
-                  {!unidadeSelecionada && (
-                    <View style={estilos.indicadorSelecionado}>
-                      <MaterialIcons
-                        name="check-circle"
-                        size={20}
-                        color="#059669"
-                      />
-                    </View>
-                  )}
-                </TouchableOpacity>
+                  {unidadeSelecionada
+                    ? unidadeSelecionada.nome
+                    : unidades.length > 0
+                    ? "Selecione uma unidade"
+                    : "Carregando unidades..."}
+                </Text>
+              </View>
+              <MaterialIcons name="expand-more" size={24} color="#64748b" />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={estilos.containerSeletorFixo}>
+            <View style={estilos.conteudoSeletor}>
+              <View style={estilos.iconeSeletor}>
+                <MaterialIcons name="warehouse" size={15} color="#059669" />
+              </View>
+              <View style={estilos.textoContainer}>
+                <Text
+                  style={estilos.textoSeletor}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {unidadeSelecionada?.nome ||
+                    unidadeUsuario?.nome ||
+                    "Sua Unidade"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
-                {unidades.map((unidade) => (
+        {podeAcessarTodasUnidades && (
+          <Modal
+            animationType="slide"
+            transparent={true}
+            visible={modalVisivel}
+            onRequestClose={() => setModalVisivel(false)}
+          >
+            <View style={estilos.containerModal}>
+              <TouchableOpacity
+                style={estilos.overlayModal}
+                activeOpacity={1}
+                onPress={() => setModalVisivel(false)}
+              />
+              <View style={estilos.conteudoModal}>
+                <View style={estilos.cabecalhoModal}>
+                  <View style={estilos.tituloModalContainer}>
+                    <MaterialIcons name="warehouse" size={24} color="#059669" />
+                    <Text style={estilos.tituloModal}>Selecionar Unidade</Text>
+                  </View>
                   <TouchableOpacity
-                    key={unidade.id}
+                    onPress={() => setModalVisivel(false)}
+                    style={estilos.botaoFecharModal}
+                  >
+                    <MaterialIcons name="close" size={24} color="#64748b" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={estilos.separadorModal} />
+
+                <ScrollView
+                  style={estilos.listaUnidades}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <TouchableOpacity
                     style={[
                       estilos.itemUnidade,
-                      unidadeSelecionada?.id === unidade.id &&
-                        estilos.itemUnidadeSelecionado,
+                      !unidadeSelecionada && estilos.itemUnidadeSelecionado,
                     ]}
                     onPress={() => {
-                      setUnidadeSelecionada(unidade);
-                      carregarDadosUnidade(unidade.id);
+                      setUnidadeSelecionada(null);
                       setModalVisivel(false);
+                      carregarDadosDashboard();
                     }}
                     activeOpacity={0.7}
                   >
                     <View style={estilos.iconeItemContainer}>
                       <MaterialIcons
-                        name="warehouse"
-                        size={15}
-                        color={
-                          unidadeSelecionada?.id === unidade.id
-                            ? "#059669"
-                            : "#64748b"
-                        }
+                        name="grid-view"
+                        size={20}
+                        color={!unidadeSelecionada ? "#059669" : "#64748b"}
                       />
                     </View>
                     <View style={estilos.conteudoItem}>
                       <Text
                         style={[
                           estilos.nomeUnidade,
-                          unidadeSelecionada?.id === unidade.id &&
-                            estilos.nomeUnidadeSelecionado,
+                          !unidadeSelecionada && estilos.nomeUnidadeSelecionado,
                         ]}
                       >
-                        {unidade.nome}
+                        Todas as unidades
                       </Text>
                       <Text style={estilos.descricaoItem}>
-                        {unidade.cidade
-                          ? `${unidade.cidade}, ${unidade.estado}`
-                          : "Filial cadastrada"}
+                        Visualizar dados de todas as filiais
                       </Text>
                     </View>
-                    {unidadeSelecionada?.id === unidade.id && (
+                    {!unidadeSelecionada && (
                       <View style={estilos.indicadorSelecionado}>
                         <MaterialIcons
                           name="check-circle"
@@ -377,11 +372,65 @@ export default function PainelControle() {
                       </View>
                     )}
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+
+                  {unidades.map((unidade) => (
+                    <TouchableOpacity
+                      key={unidade.id}
+                      style={[
+                        estilos.itemUnidade,
+                        unidadeSelecionada?.id === unidade.id &&
+                          estilos.itemUnidadeSelecionado,
+                      ]}
+                      onPress={() => {
+                        setUnidadeSelecionada(unidade);
+                        carregarDadosUnidade(unidade.id);
+                        setModalVisivel(false);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={estilos.iconeItemContainer}>
+                        <MaterialIcons
+                          name="warehouse"
+                          size={15}
+                          color={
+                            unidadeSelecionada?.id === unidade.id
+                              ? "#059669"
+                              : "#64748b"
+                          }
+                        />
+                      </View>
+                      <View style={estilos.conteudoItem}>
+                        <Text
+                          style={[
+                            estilos.nomeUnidade,
+                            unidadeSelecionada?.id === unidade.id &&
+                              estilos.nomeUnidadeSelecionado,
+                          ]}
+                        >
+                          {unidade.nome}
+                        </Text>
+                        <Text style={estilos.descricaoItem}>
+                          {unidade.cidade
+                            ? `${unidade.cidade}, ${unidade.estado}`
+                            : "Filial cadastrada"}
+                        </Text>
+                      </View>
+                      {unidadeSelecionada?.id === unidade.id && (
+                        <View style={estilos.indicadorSelecionado}>
+                          <MaterialIcons
+                            name="check-circle"
+                            size={20}
+                            color="#059669"
+                          />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
+        )}
       </View>
 
       <View style={estilos.containerResumo}>
@@ -460,9 +509,12 @@ export default function PainelControle() {
       </View>
 
       <View style={estilos.botoesAcao}>
-        <TouchableOpacity style={[estilos.botaoAcao, estilos.botaoPrimario]}>
+        <TouchableOpacity
+          style={[estilos.botaoAcao, estilos.botaoPrimario]}
+          onPress={() => navegacao.navigate("Movimentacoes")}
+        >
           <MaterialIcons name="add" size={20} color="#fff" />
-          <Text style={estilos.textoBotao}>Nova Movimentação</Text>
+          <Text style={estilos.textoBotao}>Movimentações</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[estilos.botaoAcao, estilos.botaoSecundario]}>
           <MaterialIcons name="file-download" size={20} color="#059669" />
@@ -756,7 +808,7 @@ const estilos = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f8fafc",
     gap: 12,
-    minHeight: 60, // Altura mínima para evitar cortes
+    minHeight: 60,
   },
 
   itemUnidadeSelecionado: {
@@ -769,7 +821,7 @@ const estilos = StyleSheet.create({
     color: "#374151",
     fontWeight: "500",
     flex: 1,
-    lineHeight: 18, // Melhor espaçamento do texto
+    lineHeight: 18,
   },
 
   nomeUnidadeSelecionado: {
@@ -992,7 +1044,7 @@ const estilos = StyleSheet.create({
   textoContainer: {
     flex: 1,
     justifyContent: "center",
-    paddingVertical: 4, // Padding vertical para melhor espaçamento
+    paddingVertical: 4,
   },
 
   tituloModalContainer: {
@@ -1019,14 +1071,14 @@ const estilos = StyleSheet.create({
   conteudoItem: {
     flex: 1,
     marginLeft: 12,
-    paddingVertical: 4, // Padding para melhor espaçamento vertical
+    paddingVertical: 4,
   },
 
   descricaoItem: {
     fontSize: 13,
     color: "#64748b",
     marginTop: 2,
-    lineHeight: 16, // Melhor espaçamento
+    lineHeight: 16,
   },
 
   indicadorSelecionado: {
@@ -1065,5 +1117,14 @@ const estilos = StyleSheet.create({
     color: "#94a3b8",
     textAlign: "center",
     marginTop: 4,
+  },
+
+  containerSeletorFixo: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 24,
+    overflow: "hidden",
   },
 });
