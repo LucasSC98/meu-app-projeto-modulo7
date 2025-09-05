@@ -1,4 +1,3 @@
-// ...existing code...
 export type RootStackParamList = {
   Login: undefined;
   Cadastro: undefined;
@@ -6,7 +5,9 @@ export type RootStackParamList = {
   CadastroProduto: undefined;
   CadastroCategoria: undefined;
   CadastroUnidade: undefined;
+  CadastroMovimentacao: undefined;
   Dashboard: undefined;
   ListaProdutos: undefined;
   MapaUnidades: undefined;
+  Movimentacoes: undefined;
 };
