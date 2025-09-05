@@ -18,11 +18,9 @@ import {
 import { Input } from "../components/Input";
 
 import api from "../services/api";
-import Toast from 'react-native-toast-message';
+import Toast from "react-native-toast-message";
 
 export default function CadastroCategoria() {
- 
-
   const [fontesLoaded] = useFonts({
     NunitoSans_400Regular,
     NunitoSans_600SemiBold,
@@ -35,10 +33,10 @@ export default function CadastroCategoria() {
   async function cadastrarCategoria() {
     if (!nome || !descricao) {
       Toast.show({
-        type: 'error',
-        text1: 'Erro',
-        text2: 'Preencha todos os campos!',
-        position: 'top',
+        type: "error",
+        text1: "Erro",
+        text2: "Preencha todos os campos!",
+        position: "top",
         visibilityTime: 3000,
       });
       return;
@@ -52,19 +50,19 @@ export default function CadastroCategoria() {
       }
 
       Toast.show({
-        type: 'success',
-        text1: 'Sucesso',
-        text2: 'Categoria cadastrada com sucesso!',
-        position: 'top',
+        type: "success",
+        text1: "Sucesso",
+        text2: "Categoria cadastrada com sucesso!",
+        position: "top",
         visibilityTime: 3000,
       });
       limparCampos();
     } catch (error) {
       Toast.show({
-        type: 'error',
-        text1: 'Erro',
+        type: "error",
+        text1: "Erro",
         text2: String(error),
-        position: 'top',
+        position: "top",
         visibilityTime: 3000,
       });
     }
@@ -94,7 +92,6 @@ export default function CadastroCategoria() {
         </View>
 
         <View style={styles.form}>
-          {/* Nome da Categoria */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nome</Text>
             <Input
@@ -105,7 +102,6 @@ export default function CadastroCategoria() {
             />
           </View>
 
-          {/* Descrição */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Descrição</Text>
             <Input
