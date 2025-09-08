@@ -9,8 +9,15 @@ class Usuario extends Model {
   public email!: string;
   public senha!: string;
   public cpf!: string;
+  public cargo!: string;
+  public unidade_id!: number;
+
   public async verificarSenha(senha: string): Promise<boolean> {
     return bcrypt.compare(senha, this.senha);
+  }
+
+  public podeAcessarTodasUnidades(): boolean {
+    return this.cargo === "gerente"; // Apenas gerente pode acessar todas as unidades
   }
 }
 
@@ -59,6 +66,19 @@ Usuario.init(
             throw new Error("Senha inválida");
           }
         },
+      },
+    },
+    cargo: {
+      type: DataTypes.ENUM("gerente", "estoquista", "financeiro"),
+      allowNull: false,
+      defaultValue: "estoquista",
+    },
+    unidade_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false, // Tornar obrigatório
+      references: {
+        model: "unidades",
+        key: "id",
       },
     },
   },

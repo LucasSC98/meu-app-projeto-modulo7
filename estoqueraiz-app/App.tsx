@@ -8,8 +8,11 @@ import CadastroProduto from "./src/screens/CadastroProduto";
 import CadastroCategoria from "./src/screens/CadastroCategorias";
 import CadastroUnidade from "./src/screens/CadastroUnidades";
 import ListaProdutos from "./src/screens/ListaProdutos";
-import Toast from 'react-native-toast-message';
-import { toastConfig } from './src/config/toastConfig.jsx';
+import MapaUnidades from "./src/screens/MapaUnidades";
+import Movimentacoes from "./src/screens/Movimentacoes";
+import CadastroMovimentacao from "./src/screens/CadastroMovimentacao";
+import Toast from "react-native-toast-message";
+import { toastConfig } from "./src/config/toastConfig.jsx";
 
 const Stack = createNativeStackNavigator();
 
@@ -56,6 +59,21 @@ export default function App() {
           <Stack.Screen
             name="ListaProdutos"
             component={ListaProdutos}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="MapaUnidades"
+            component={MapaUnidades}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="Movimentacoes"
+            component={Movimentacoes}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="CadastroMovimentacao"
+            component={CadastroMovimentacao}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>

@@ -6,8 +6,12 @@ import {
   atualizarUnidade,
   deletarUnidade,
 } from "../controllers/UnidadesController";
+import { verificarAcessoUnidade } from "../middleware/VerificacaoUnidadeMiddleware";
 
 const router = Router();
+
+// Aplicar middleware de verificação de unidade em todas as rotas
+router.use(verificarAcessoUnidade);
 
 /**
  * @swagger

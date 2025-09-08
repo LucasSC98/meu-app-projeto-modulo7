@@ -68,11 +68,17 @@ export default function ListaProdutos() {
           api.get("/unidades"),
         ]);
 
-      setProdutos(responseProdutos.data);
+      const produtosAtivos = Array.isArray(responseProdutos.data)
+        ? responseProdutos.data.filter(
+            (produto: any) => produto.quantidade_estoque > 0
+          )
+        : [];
+
+      setProdutos(produtosAtivos);
       setCategorias(responseCategorias.data);
       setUnidades(responseUnidades.data);
 
-      setProdutosFiltrados(responseProdutos.data);
+      setProdutosFiltrados(produtosAtivos);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
       Toast.show({
@@ -91,7 +97,10 @@ export default function ListaProdutos() {
     try {
       setAtualizando(true);
       const response = await api.get("/produtos");
-      setProdutos(response.data);
+      const produtosAtivos = Array.isArray(response.data)
+        ? response.data.filter((produto: any) => produto.quantidade_estoque > 0)
+        : [];
+      setProdutos(produtosAtivos);
     } catch (error) {
       console.error("Erro ao atualizar lista:", error);
     } finally {

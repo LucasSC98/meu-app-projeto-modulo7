@@ -28,8 +28,8 @@ Categoria.init(
     sequelize,
     tableName: "categorias",
     timestamps: true,
-    createdAt: "criado_em",
-    updatedAt: "atualizado_em",
+    createdAt: "criadoEm",
+    updatedAt: "atualizadoEm",
   }
 );
 

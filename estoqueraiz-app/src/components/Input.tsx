@@ -1,5 +1,3 @@
-//componente input em react native expo cli
-
 import React from "react";
 import { StyleSheet, TextInput, TextInputProps } from "react-native";
 
@@ -10,20 +8,20 @@ export function Input(props: InputProps) {
 }
 const styles = StyleSheet.create({
   input: {
-    height: 45,
-    borderWidth: 2,
-    borderRadius: 10,
-    borderColor: "#0000001a",
-    paddingHorizontal: 10,
-    marginBottom: 20,
     backgroundColor: "#fff",
-    shadowColor: "#04007eff",
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    elevation: 1,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.55,
-    shadowRadius: 2.84,
-    elevation: 20,
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    fontFamily: "NunitoSans_400Regular",
   },
   inputErro: {
-    borderColor: "red",
+    borderColor: "#F44336",
   },
 });

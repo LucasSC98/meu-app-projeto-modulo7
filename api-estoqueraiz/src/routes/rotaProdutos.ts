@@ -8,9 +8,15 @@ import {
   buscarProdutosPorCategoria,
   buscarProdutosPorUnidade,
   buscarProdutosEstoqueBaixo,
+  entradaEstoque,
+  saidaEstoque,
 } from "../controllers/ProdutosController";
+import { verificarAcessoUnidade } from "../middleware/VerificacaoUnidadeMiddleware";
 
 const router = Router();
+
+// Aplicar middleware de verificação de unidade em todas as rotas
+router.use(verificarAcessoUnidade);
 
 /**
  * @swagger
@@ -201,5 +207,75 @@ router.get("/unidade/:unidade_id", buscarProdutosPorUnidade);
  *         description: Produtos com estoque baixo retornados com sucesso
  */
 router.get("/estoque/baixo", buscarProdutosEstoqueBaixo);
+
+/**
+ * @swagger
+ * /produtos/{id}/entrada:
+ *   post:
+ *     tags:
+ *       - Produtos
+ *     summary: Registra entrada de estoque
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do produto
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               quantidade:
+ *                 type: number
+ *               observacao:
+ *                 type: string
+ *               documento:
+ *                 type: string
+ *               usuario_id:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Entrada registrada com sucesso
+ */
+router.post("/:id/entrada", entradaEstoque);
+
+/**
+ * @swagger
+ * /produtos/{id}/saida:
+ *   post:
+ *     tags:
+ *       - Produtos
+ *     summary: Registra saída de estoque
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do produto
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               quantidade:
+ *                 type: number
+ *               observacao:
+ *                 type: string
+ *               documento:
+ *                 type: string
+ *               usuario_id:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Saída registrada com sucesso
+ */
+router.post("/:id/saida", saidaEstoque);
 
 export default router;

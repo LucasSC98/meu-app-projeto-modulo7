@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import UsuariosModelo from "../models/UsuariosModel";
+import UnidadesModel from "../models/UnidadesModel";
 import { gerarToken as gerarJwt } from "../utils/jwt";
+import bcrypt from "bcrypt";
 
 const buscarUsuarioPorEmail = async (
   email: string
@@ -23,6 +25,8 @@ const formatarRespostaUsuario = (usuario: UsuariosModelo, token: string) => {
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
+      cargo: usuario.cargo,
+      unidade_id: usuario.unidade_id,
     },
   };
 };

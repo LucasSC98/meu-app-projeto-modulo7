@@ -3,16 +3,25 @@ import ProdutoModel from "../models/ProdutosModel";
 import CategoriaModel from "../models/CategoriasModel";
 import UnidadeModel from "../models/UnidadesModel";
 import UsuarioModel from "../models/UsuariosModel";
+import MovimentacaoModel from "../models/MovimentacoesModel";
+import sequelize from "../config/database";
+import { validarUnidadeAcesso } from "../middleware/VerificacaoUnidadeMiddleware";
 
 export async function buscarTodosProdutos(req: Request, res: Response) {
   try {
+    const whereClause: any = { ativo: true };
+
+    if (req.unidadePermitida !== null) {
+      whereClause.unidade_id = req.unidadePermitida;
+    }
+
     const produtos = await ProdutoModel.findAll({
+      where: whereClause,
       include: [
         { model: CategoriaModel, as: "categoria" },
         { model: UnidadeModel, as: "unidade" },
         { model: UsuarioModel, as: "usuario" },
       ],
-      where: { ativo: true },
     });
     return res.status(200).json(produtos);
   } catch (error: unknown) {
@@ -37,6 +46,12 @@ export async function buscarProdutoPorId(req: Request, res: Response) {
 
     if (!produto) {
       return res.status(404).json({ message: "Produto não encontrado" });
+    }
+    if (!validarUnidadeAcesso(produto.unidade_id, req)) {
+      return res.status(403).json({
+        message:
+          "Acesso negado: você não tem permissão para acessar este produto",
+      });
     }
 
     return res.status(200).json(produto);
@@ -65,6 +80,13 @@ export async function criarProduto(req: Request, res: Response) {
     unidade_id,
     usuario_id,
   } = req.body;
+
+  // Verificar se usuário pode cadastrar produto nesta unidade
+  if (!validarUnidadeAcesso(unidade_id, req)) {
+    return res.status(403).json({
+      message: "Acesso negado: você não pode cadastrar produtos nesta unidade",
+    });
+  }
 
   if (
     !nome ||
@@ -95,6 +117,7 @@ export async function criarProduto(req: Request, res: Response) {
       categoria_id,
       unidade_id,
       usuario_id,
+      ativo: (quantidade_estoque || 0) > 0,
     });
 
     return res
@@ -134,6 +157,23 @@ export async function atualizarProduto(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
+    // Verificar se usuário pode atualizar produto desta unidade
+    if (!validarUnidadeAcesso(produto.unidade_id, req)) {
+      return res.status(403).json({
+        message: "Acesso negado: você não pode atualizar este produto",
+      });
+    }
+
+    // Se está mudando de unidade, verificar se pode acessar a nova unidade
+    if (unidade_id && unidade_id !== produto.unidade_id) {
+      if (!validarUnidadeAcesso(unidade_id, req)) {
+        return res.status(403).json({
+          message:
+            "Acesso negado: você não pode mover produto para esta unidade",
+        });
+      }
+    }
+
     await produto.update({
       nome,
       descricao,
@@ -148,7 +188,7 @@ export async function atualizarProduto(req: Request, res: Response) {
       imagem_url,
       categoria_id,
       unidade_id,
-      ativo,
+      ativo: quantidade_estoque > 0,
     });
 
     return res
@@ -172,6 +212,13 @@ export async function deletarProduto(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
+    // Verificar se usuário pode deletar produto desta unidade
+    if (!validarUnidadeAcesso(produto.unidade_id, req)) {
+      return res.status(403).json({
+        message: "Acesso negado: você não pode deletar este produto",
+      });
+    }
+
     await produto.update({ ativo: false });
 
     return res.status(200).json({ message: "Produto desativado com sucesso" });
@@ -187,8 +234,15 @@ export async function buscarProdutosPorCategoria(req: Request, res: Response) {
   const { categoria_id } = req.params;
 
   try {
+    const whereClause: any = { categoria_id, ativo: true };
+
+    // Se usuário não pode acessar todas as unidades, filtrar pela unidade dele
+    if (req.unidadePermitida !== null) {
+      whereClause.unidade_id = req.unidadePermitida;
+    }
+
     const produtos = await ProdutoModel.findAll({
-      where: { categoria_id, ativo: true },
+      where: whereClause,
       include: [
         { model: CategoriaModel, as: "categoria" },
         { model: UnidadeModel, as: "unidade" },
@@ -207,10 +261,19 @@ export async function buscarProdutosPorCategoria(req: Request, res: Response) {
 
 export async function buscarProdutosPorUnidade(req: Request, res: Response) {
   const { unidade_id } = req.params;
+  const unidadeIdNum = parseInt(unidade_id);
+
+  // Verificar se usuário pode acessar esta unidade
+  if (!validarUnidadeAcesso(unidadeIdNum, req)) {
+    return res.status(403).json({
+      message:
+        "Acesso negado: você não tem permissão para acessar esta unidade",
+    });
+  }
 
   try {
     const produtos = await ProdutoModel.findAll({
-      where: { unidade_id, ativo: true },
+      where: { unidade_id: unidadeIdNum, ativo: true },
       include: [
         { model: CategoriaModel, as: "categoria" },
         { model: UnidadeModel, as: "unidade" },
@@ -229,10 +292,15 @@ export async function buscarProdutosPorUnidade(req: Request, res: Response) {
 
 export async function buscarProdutosEstoqueBaixo(req: Request, res: Response) {
   try {
+    const whereClause: any = { ativo: true };
+
+    // Se usuário não pode acessar todas as unidades, filtrar pela unidade dele
+    if (req.unidadePermitida !== null) {
+      whereClause.unidade_id = req.unidadePermitida;
+    }
+
     const produtos = await ProdutoModel.findAll({
-      where: {
-        ativo: true,
-      },
+      where: whereClause,
       include: [
         { model: CategoriaModel, as: "categoria" },
         { model: UnidadeModel, as: "unidade" },
@@ -248,6 +316,154 @@ export async function buscarProdutosEstoqueBaixo(req: Request, res: Response) {
   } catch (error: unknown) {
     return res.status(500).json({
       message: "Erro ao buscar produtos com estoque baixo",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+// Adicionar nova função para entrada de estoque
+export async function entradaEstoque(req: Request, res: Response) {
+  const { id } = req.params;
+  const { quantidade, observacao, documento, usuario_id } = req.body;
+
+  if (!quantidade || !usuario_id) {
+    return res.status(400).json({
+      message: "Quantidade e usuario_id são obrigatórios",
+    });
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const produto = await ProdutoModel.findByPk(id);
+    if (!produto) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "Produto não encontrado" });
+    }
+
+    // Verificar se usuário pode fazer entrada nesta unidade
+    if (!validarUnidadeAcesso(produto.unidade_id, req)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        message: "Acesso negado: você não pode fazer entrada nesta unidade",
+      });
+    }
+
+    // Criar movimentação
+    await MovimentacaoModel.create(
+      {
+        tipo: "ENTRADA",
+        quantidade,
+        observacao,
+        documento,
+        produto_id: id,
+        usuario_id,
+      },
+      { transaction }
+    );
+
+    // Atualizar estoque
+    const novaQuantidade = produto.quantidade_estoque + quantidade;
+    await produto.update(
+      {
+        quantidade_estoque: novaQuantidade,
+        ativo: novaQuantidade > 0, // Ativar/desativar baseado na quantidade
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      message: "Entrada de estoque realizada com sucesso",
+      produto: {
+        ...produto.toJSON(),
+        quantidade_estoque: novaQuantidade,
+        ativo: novaQuantidade > 0,
+      },
+    });
+  } catch (error: unknown) {
+    await transaction.rollback();
+    return res.status(500).json({
+      message: "Erro ao realizar entrada de estoque",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function saidaEstoque(req: Request, res: Response) {
+  const { id } = req.params;
+  const { quantidade, observacao, documento, usuario_id } = req.body;
+
+  if (!quantidade || !usuario_id) {
+    return res.status(400).json({
+      message: "Quantidade e usuario_id são obrigatórios",
+    });
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const produto = await ProdutoModel.findByPk(id);
+    if (!produto) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "Produto não encontrado" });
+    }
+
+    // Verificar se usuário pode fazer saída nesta unidade
+    if (!validarUnidadeAcesso(produto.unidade_id, req)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        message: "Acesso negado: você não pode fazer saída nesta unidade",
+      });
+    }
+
+    if (produto.quantidade_estoque < quantidade) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Quantidade insuficiente em estoque",
+        estoque_atual: produto.quantidade_estoque,
+        quantidade_solicitada: quantidade,
+      });
+    }
+
+    // Criar movimentação
+    await MovimentacaoModel.create(
+      {
+        tipo: "SAIDA",
+        quantidade,
+        observacao,
+        documento,
+        produto_id: id,
+        usuario_id,
+      },
+      { transaction }
+    );
+
+    // Atualizar estoque
+    const novaQuantidade = produto.quantidade_estoque - quantidade;
+    await produto.update(
+      {
+        quantidade_estoque: novaQuantidade,
+        ativo: novaQuantidade > 0, // Ativar/desativar baseado na quantidade
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      message: "Saída de estoque realizada com sucesso",
+      produto: {
+        ...produto.toJSON(),
+        quantidade_estoque: novaQuantidade,
+        ativo: novaQuantidade > 0,
+      },
+    });
+  } catch (error: unknown) {
+    await transaction.rollback();
+    return res.status(500).json({
+      message: "Erro ao realizar saída de estoque",
       error: error instanceof Error ? error.message : String(error),
     });
   }
