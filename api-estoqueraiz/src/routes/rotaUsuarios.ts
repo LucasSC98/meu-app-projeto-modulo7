@@ -5,7 +5,13 @@ import {
   buscarUsuarioPorId,
   criarUsuario,
   deletarUsuário,
+  listarUsuariosPendentes,
+  aprovarUsuario,
+  rejeitarUsuario,
+  alterarCargoUsuario,
 } from "../controllers/UsuariosController";
+import { verificarToken } from "../middleware/AutenticacaoMiddleware";
+import { verificarAcessoUnidade } from "../middleware/VerificacaoUnidadeMiddleware";
 
 const router = express.Router();
 
@@ -27,7 +33,7 @@ const router = express.Router();
  *       200:
  *         description: Lista de usuários retornada com sucesso
  */
-router.get("/", buscarTodosUsuarios);
+router.get("/", verificarToken, verificarAcessoUnidade, buscarTodosUsuarios);
 
 /**
  * @swagger
@@ -49,7 +55,7 @@ router.get("/", buscarTodosUsuarios);
  *       404:
  *         description: Usuário não encontrado
  */
-router.get("/:id", buscarUsuarioPorId);
+router.get("/:id", verificarToken, verificarAcessoUnidade, buscarUsuarioPorId);
 
 /**
  * @swagger
@@ -106,7 +112,7 @@ router.post("/", criarUsuario);
  *       404:
  *         description: Usuário não encontrado
  */
-router.put("/:id", atualizarUsuário);
+router.put("/:id", verificarToken, verificarAcessoUnidade, atualizarUsuário);
 
 /**
  * @swagger
@@ -128,6 +134,129 @@ router.put("/:id", atualizarUsuário);
  *       404:
  *         description: Usuário não encontrado
  */
-router.delete("/:id", deletarUsuário);
+router.delete("/:id", verificarToken, verificarAcessoUnidade, deletarUsuário);
+
+/**
+ * @swagger
+ * /usuarios/pendentes:
+ *   get:
+ *     tags:
+ *       - Usuários
+ *     summary: Lista usuários com status pendente (apenas gerentes)
+ *     responses:
+ *       200:
+ *         description: Lista de usuários pendentes
+ *       403:
+ *         description: Acesso negado
+ */
+router.get(
+  "/pendentes",
+  verificarToken,
+  verificarAcessoUnidade,
+  listarUsuariosPendentes
+);
+
+/**
+ * @swagger
+ * /usuarios/{id}/aprovar:
+ *   put:
+ *     tags:
+ *       - Usuários
+ *     summary: Aprova usuário pendente e define cargo/unidade (apenas gerentes)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do usuário
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               cargo:
+ *                 type: string
+ *                 enum: [estoquista, financeiro]
+ *               unidade_id:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Usuário aprovado
+ *       403:
+ *         description: Acesso negado
+ */
+router.put(
+  "/:id/aprovar",
+  verificarToken,
+  verificarAcessoUnidade,
+  aprovarUsuario
+);
+
+/**
+ * @swagger
+ * /usuarios/{id}/rejeitar:
+ *   put:
+ *     tags:
+ *       - Usuários
+ *     summary: Rejeita usuário pendente (apenas gerentes)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do usuário
+ *     responses:
+ *       200:
+ *         description: Usuário rejeitado
+ *       403:
+ *         description: Acesso negado
+ */
+router.put(
+  "/:id/rejeitar",
+  verificarToken,
+  verificarAcessoUnidade,
+  rejeitarUsuario
+);
+
+/**
+ * @swagger
+ * /usuarios/{id}/alterar-cargo:
+ *   put:
+ *     tags:
+ *       - Usuários
+ *     summary: Altera cargo de usuário aprovado (apenas gerentes)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do usuário
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               cargo:
+ *                 type: string
+ *                 enum: [gerente, estoquista, financeiro]
+ *     responses:
+ *       200:
+ *         description: Cargo alterado com sucesso
+ *       403:
+ *         description: Acesso negado
+ */
+router.put(
+  "/:id/alterar-cargo",
+  verificarToken,
+  verificarAcessoUnidade,
+  alterarCargoUsuario
+);
 
 export default router;
