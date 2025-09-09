@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import UsuariosModel from "../models/UsuariosModel";
+import UnidadesModel from "../models/UnidadesModel";
 import { enviarEmail } from "../utils/smtp";
 import sequelize from "../config/database";
 
@@ -9,7 +10,14 @@ interface AuthRequest extends Request {
 
 export const buscarTodosUsuarios = async (req: Request, res: Response) => {
   try {
-    const usuarios = await UsuariosModel.findAll();
+    const usuarios = await UsuariosModel.findAll({
+      include: [
+        {
+          model: UnidadesModel,
+          as: "unidade",
+        },
+      ],
+    });
     return res.status(200).json(usuarios);
   } catch (error: unknown) {
     return res.status(500).json({
@@ -42,7 +50,6 @@ export const criarUsuario = async (req: Request, res: Response) => {
   try {
     const { nome, email, senha, cpf } = req.body;
 
-    // Validações básicas
     if (!nome || !email || !senha || !cpf) {
       await transaction.rollback();
       return res.status(400).json({
@@ -57,7 +64,6 @@ export const criarUsuario = async (req: Request, res: Response) => {
       });
     }
 
-    // Verificar se email já existe
     const usuarioExistente = await UsuariosModel.findOne({ where: { email } });
     if (usuarioExistente) {
       await transaction.rollback();
@@ -66,36 +72,43 @@ export const criarUsuario = async (req: Request, res: Response) => {
       });
     }
 
-    const dadosDoUsuario = {
-      nome,
-      email,
-      senha,
-      cpf,
-      cargo: "estoquista", // Cargo padrão
-      unidade_id: 7, // Use uma unidade padrão que existe (vimos que você tem IDs 7-14)
-    };
+    const cpfExistente = await UsuariosModel.findOne({ where: { cpf } });
+    if (cpfExistente) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "CPF já está em uso",
+      });
+    }
 
-    const novoUsuario = await UsuariosModel.create(dadosDoUsuario, {
-      transaction,
-    });
+    const novoUsuario = await UsuariosModel.create(
+      {
+        nome,
+        email,
+        senha,
+        cpf,
+        status: "pendente",
+        cargo: null,
+        unidade_id: null,
+      },
+      { transaction }
+    );
 
     await transaction.commit();
 
-    // Enviar email de boas-vindas (sem aguardar)
     enviarEmail(
       novoUsuario.email,
-      `Bem-vindo ao Sistema Estoque Raiz - Agrológica`,
-      `Olá ${novoUsuario.nome},\n\nSua conta foi criada com sucesso no sistema de estoque da Agrológica!\n\nCredenciais:\nEmail: ${email}\nSenha: ${senha}\n\nAcesse o sistema mobile.`
+      "Bem-vindo ao Sistema Estoque Raiz - Agrológica",
+      `Olá ${novoUsuario.nome},\n\nSua conta foi criada com sucesso no sistema de estoque da Agrológica!\n\nSua conta está aguardando aprovação do gerente. Você receberá uma notificação assim que for aprovado.\n\nEmail: ${email}\n\nAcesse o sistema mobile após aprovação.`
     ).catch(console.error);
 
     return res.status(201).json({
-      message: "Usuário criado com sucesso",
+      message:
+        "Usuário criado com sucesso. Conta aguardando aprovação do gerente.",
       usuario: {
         id: novoUsuario.id,
         nome: novoUsuario.nome,
         email: novoUsuario.email,
-        cargo: novoUsuario.cargo,
-        unidade_id: novoUsuario.unidade_id,
+        status: novoUsuario.status,
       },
     });
   } catch (error: unknown) {
@@ -107,33 +120,153 @@ export const criarUsuario = async (req: Request, res: Response) => {
   }
 };
 
-export const atualizarUsuário = async (req: AuthRequest, res: Response) => {
-  const transaction = await sequelize.transaction();
-
+export const listarUsuariosPendentes = async (req: Request, res: Response) => {
   try {
-    const { nome, email, senha, cpf } = req.body;
-
-    if (nome && nome.length < 3) {
-      await transaction.rollback();
-      return res.status(400).json({
-        message: "Nome deve ter pelo menos 3 caracteres",
+    if (req.usuario?.cargo !== "gerente") {
+      return res.status(403).json({
+        message:
+          "Acesso negado: apenas gerentes podem visualizar usuários pendentes",
       });
     }
 
-    const usuario = await UsuariosModel.findByPk(req.params.id);
+    const usuariosPendentes = await UsuariosModel.findAll({
+      where: { status: "pendente" },
+      attributes: ["id", "nome", "email", "cpf", "status"],
+      order: [["nome", "ASC"]],
+    });
+
+    return res.status(200).json(usuariosPendentes);
+  } catch (error: unknown) {
+    return res.status(500).json({
+      message: "Erro ao listar usuários pendentes",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const aprovarUsuario = async (req: Request, res: Response) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    const { cargo, unidade_id } = req.body;
+
+    if (req.usuario?.cargo !== "gerente") {
+      await transaction.rollback();
+      return res.status(403).json({
+        message: "Acesso negado: apenas gerentes podem aprovar usuários",
+      });
+    }
+
+    if (!cargo || !["estoquista", "financeiro"].includes(cargo)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Cargo deve ser estoquista ou financeiro",
+      });
+    }
+
+    if (!unidade_id) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Unidade é obrigatória",
+      });
+    }
+
+    const unidade = await UnidadesModel.findByPk(unidade_id);
+    if (!unidade) {
+      await transaction.rollback();
+      return res.status(404).json({
+        message: "Unidade não encontrada",
+      });
+    }
+
+    const usuario = await UsuariosModel.findByPk(id);
+    if (!usuario || usuario.status !== "pendente") {
+      await transaction.rollback();
+      return res.status(404).json({
+        message: "Usuário pendente não encontrado",
+      });
+    }
+
+    await usuario.update(
+      {
+        status: "aprovado",
+        cargo,
+        unidade_id,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    enviarEmail(
+      usuario.email,
+      "Conta Aprovada - Sistema Estoque Raiz",
+      `Olá ${usuario.nome},\n\nSua conta foi aprovada pelo gerente!\n\nCargo: ${cargo}\nUnidade: ${unidade.nome}\n\nAgora você pode acessar o sistema mobile.`
+    ).catch(console.error);
+
+    return res.status(200).json({
+      message: "Usuário aprovado com sucesso",
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        cargo: usuario.cargo,
+        unidade_id: usuario.unidade_id,
+        status: usuario.status,
+      },
+    });
+  } catch (error: unknown) {
+    await transaction.rollback();
+    return res.status(500).json({
+      message: "Erro ao aprovar usuário",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const atualizarUsuário = async (req: Request, res: Response) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    const { nome, email, senha, cpf } = req.body;
+
+    const usuario = await UsuariosModel.findByPk(id);
     if (!usuario) {
       await transaction.rollback();
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
+    if (email && email !== usuario.email) {
+      const usuarioExistente = await UsuariosModel.findOne({
+        where: { email },
+      });
+      if (usuarioExistente) {
+        await transaction.rollback();
+        return res.status(400).json({
+          message: "Email já está em uso",
+        });
+      }
+    }
 
-    // Atualizar apenas campos fornecidos
+    if (cpf && cpf !== usuario.cpf) {
+      const cpfExistente = await UsuariosModel.findOne({ where: { cpf } });
+      if (cpfExistente) {
+        await transaction.rollback();
+        return res.status(400).json({
+          message: "CPF já está em uso",
+        });
+      }
+    }
+
     const dadosAtualizacao: any = {};
     if (nome) dadosAtualizacao.nome = nome;
     if (email) dadosAtualizacao.email = email;
-    if (senha) dadosAtualizacao.senha = senha;
     if (cpf) dadosAtualizacao.cpf = cpf;
+    if (senha) dadosAtualizacao.senha = senha;
 
     await usuario.update(dadosAtualizacao, { transaction });
+
     await transaction.commit();
 
     return res.status(200).json({
@@ -142,6 +275,8 @@ export const atualizarUsuário = async (req: AuthRequest, res: Response) => {
         id: usuario.id,
         nome: usuario.nome,
         email: usuario.email,
+        cpf: usuario.cpf,
+        status: usuario.status,
         cargo: usuario.cargo,
         unidade_id: usuario.unidade_id,
       },
@@ -155,27 +290,144 @@ export const atualizarUsuário = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const deletarUsuário = async (
-  req: Request<{ id: string }>,
-  res: Response
-) => {
+export const deletarUsuário = async (req: Request, res: Response) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const usuario = await UsuariosModel.findByPk(req.params.id);
+    const { id } = req.params;
+
+    const usuario = await UsuariosModel.findByPk(id);
     if (!usuario) {
       await transaction.rollback();
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
     await usuario.destroy({ transaction });
+
     await transaction.commit();
 
-    return res.status(200).json({ message: "Usuário deletado com sucesso" });
+    return res.status(200).json({
+      message: "Usuário deletado com sucesso",
+    });
   } catch (error: unknown) {
     await transaction.rollback();
     return res.status(500).json({
       message: "Erro ao deletar usuário",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const rejeitarUsuario = async (req: Request, res: Response) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+
+    if (req.usuario?.cargo !== "gerente") {
+      await transaction.rollback();
+      return res.status(403).json({
+        message: "Acesso negado: apenas gerentes podem rejeitar usuários",
+      });
+    }
+
+    const usuario = await UsuariosModel.findByPk(id);
+    if (!usuario || usuario.status !== "pendente") {
+      await transaction.rollback();
+      return res.status(404).json({
+        message: "Usuário pendente não encontrado",
+      });
+    }
+
+    await usuario.update({ status: "rejeitado" }, { transaction });
+
+    await transaction.commit();
+
+    // Enviar email de rejeição
+    enviarEmail(
+      usuario.email,
+      "Conta Rejeitada - Sistema Estoque Raiz",
+      `Olá ${usuario.nome},\n\nInfelizmente, sua conta foi rejeitada pelo gerente.\n\nEntre em contato para mais informações.`
+    ).catch(console.error);
+
+    return res.status(200).json({
+      message: "Usuário rejeitado com sucesso",
+    });
+  } catch (error: unknown) {
+    await transaction.rollback();
+    return res.status(500).json({
+      message: "Erro ao rejeitar usuário",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+};
+
+export const alterarCargoUsuario = async (req: Request, res: Response) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    const { cargo } = req.body;
+
+    if (req.usuario?.cargo !== "gerente") {
+      await transaction.rollback();
+      return res.status(403).json({
+        message: "Acesso negado: apenas gerentes podem alterar cargos",
+      });
+    }
+
+    if (!cargo || !["gerente", "estoquista", "financeiro"].includes(cargo)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Cargo deve ser gerente, estoquista ou financeiro",
+      });
+    }
+
+    const usuario = await UsuariosModel.findByPk(id);
+    if (!usuario || usuario.status !== "aprovado") {
+      await transaction.rollback();
+      return res.status(404).json({
+        message: "Usuário aprovado não encontrado",
+      });
+    }
+
+    if (req.usuario?.id === usuario.id && cargo !== "gerente") {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Não é possível alterar seu próprio cargo para não-gerente",
+      });
+    }
+
+    const cargoAntigo = usuario.cargo;
+    await usuario.update(
+      {
+        cargo,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+    enviarEmail(
+      usuario.email,
+      "Cargo Alterado - Sistema Estoque Raiz",
+      `Olá ${usuario.nome},\n\nSeu cargo foi alterado no sistema!\n\nCargo anterior: ${cargoAntigo}\nNovo cargo: ${cargo}\n\nAs alterações já estão ativas.`
+    ).catch(console.error);
+
+    return res.status(200).json({
+      message: "Cargo alterado com sucesso",
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        cargo: usuario.cargo,
+        unidade_id: usuario.unidade_id,
+        status: usuario.status,
+      },
+    });
+  } catch (error: unknown) {
+    await transaction.rollback();
+    return res.status(500).json({
+      message: "Erro ao alterar cargo do usuário",
       error: error instanceof Error ? error.message : String(error),
     });
   }
