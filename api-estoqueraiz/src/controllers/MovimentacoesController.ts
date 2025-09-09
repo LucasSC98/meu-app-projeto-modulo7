@@ -27,6 +27,24 @@ export async function criarMovimentacao(req: Request, res: Response) {
     });
   }
 
+  // Validar se o usuário tem permissão para a unidade
+  const unidadeOrigemId = unidade_origem_id || req.usuario?.unidade_id;
+  if (!unidadeOrigemId) {
+    return res.status(400).json({
+      message: "Unidade de origem não definida",
+    });
+  }
+
+  // Validar acesso à unidade (apenas estoquistas e financeiros podem movimentar em sua unidade)
+  if (
+    req.usuario?.cargo !== "gerente" &&
+    req.unidadePermitida !== unidadeOrigemId
+  ) {
+    return res.status(403).json({
+      message: "Acesso negado: você só pode movimentar produtos da sua unidade",
+    });
+  }
+
   const transaction = await sequelize.transaction();
 
   try {
@@ -48,13 +66,13 @@ export async function criarMovimentacao(req: Request, res: Response) {
     }
 
     if (tipo === "TRANSFERENCIA") {
-      if (!unidade_origem_id || !unidade_destino_id) {
+      if (!unidadeOrigemId || !unidade_destino_id) {
         await transaction.rollback();
         return res.status(400).json({
           message: "Transferência requer unidade de origem e destino",
         });
       }
-      if (unidade_origem_id === unidade_destino_id) {
+      if (unidadeOrigemId === unidade_destino_id) {
         await transaction.rollback();
         return res.status(400).json({
           message: "Unidade de origem deve ser diferente da de destino",
@@ -80,7 +98,7 @@ export async function criarMovimentacao(req: Request, res: Response) {
         documento,
         produto_id,
         usuario_id: usuarioId,
-        unidade_origem_id,
+        unidade_origem_id: unidadeOrigemId,
         unidade_destino_id,
       },
       { transaction }
@@ -216,12 +234,22 @@ export async function buscarMovimentacoes(req: Request, res: Response) {
 
     if (produto_id) whereClause.produto_id = produto_id;
     if (tipo) whereClause.tipo = tipo;
-    if (unidade_id) {
+
+    // Filtrar por unidade baseada no acesso do usuário
+    if (req.unidadePermitida !== null) {
+      // Usuário não é gerente, só vê movimentações da sua unidade
+      whereClause[Op.or] = [
+        { unidade_origem_id: req.unidadePermitida },
+        { unidade_destino_id: req.unidadePermitida },
+      ];
+    } else if (unidade_id) {
+      // Gerente pode filtrar por unidade específica se quiser
       whereClause[Op.or] = [
         { unidade_origem_id: unidade_id },
         { unidade_destino_id: unidade_id },
       ];
     }
+
     if (data_inicio && data_fim) {
       whereClause.data_movimentacao = {
         [Op.between]: [data_inicio, data_fim],
