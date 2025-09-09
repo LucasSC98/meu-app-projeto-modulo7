@@ -11,6 +11,7 @@ import ListaProdutos from "./src/screens/ListaProdutos";
 import MapaUnidades from "./src/screens/MapaUnidades";
 import Movimentacoes from "./src/screens/Movimentacoes";
 import CadastroMovimentacao from "./src/screens/CadastroMovimentacao";
+import UsuariosSistema from "./src/screens/UsuariosSistema";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "./src/config/toastConfig.jsx";
 
@@ -74,6 +75,11 @@ export default function App() {
           <Stack.Screen
             name="CadastroMovimentacao"
             component={CadastroMovimentacao}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="UsuariosSistema"
+            component={UsuariosSistema}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>
