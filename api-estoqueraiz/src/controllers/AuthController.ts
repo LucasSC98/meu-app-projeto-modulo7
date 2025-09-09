@@ -1,8 +1,6 @@
 import { Request, Response } from "express";
 import UsuariosModelo from "../models/UsuariosModel";
-import UnidadesModel from "../models/UnidadesModel";
 import { gerarToken as gerarJwt } from "../utils/jwt";
-import bcrypt from "bcrypt";
 
 const buscarUsuarioPorEmail = async (
   email: string
@@ -19,6 +17,10 @@ const validarCredenciais = async (
 };
 
 const formatarRespostaUsuario = (usuario: UsuariosModelo, token: string) => {
+  if (usuario.status !== "aprovado") {
+    throw new Error("Conta aguardando aprovação do gerente");
+  }
+
   return {
     token,
     usuario: {
@@ -27,6 +29,7 @@ const formatarRespostaUsuario = (usuario: UsuariosModelo, token: string) => {
       email: usuario.email,
       cargo: usuario.cargo,
       unidade_id: usuario.unidade_id,
+      status: usuario.status,
     },
   };
 };
@@ -52,6 +55,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (usuario.status !== "aprovado") {
+      res
+        .status(403)
+        .json({ message: "Conta aguardando pela aprovação do gerente" });
+      return;
+    }
+
     const credenciaisValidas = await validarCredenciais(usuario, senha);
 
     if (!credenciaisValidas) {
@@ -66,7 +76,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error("Erro no login:", error);
     res.status(500).json({
-      message: "Erro interno do servidor. Tente novamente mais tarde.",
+      message: "Erro interno do servidor",
+      error: error instanceof Error ? error.message : "Erro desconhecido",
     });
   }
 };

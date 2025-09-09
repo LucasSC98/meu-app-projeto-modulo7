@@ -81,7 +81,6 @@ export async function criarProduto(req: Request, res: Response) {
     usuario_id,
   } = req.body;
 
-  // Verificar se usuário pode cadastrar produto nesta unidade
   if (!validarUnidadeAcesso(unidade_id, req)) {
     return res.status(403).json({
       message: "Acesso negado: você não pode cadastrar produtos nesta unidade",
@@ -157,14 +156,12 @@ export async function atualizarProduto(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode atualizar produto desta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       return res.status(403).json({
         message: "Acesso negado: você não pode atualizar este produto",
       });
     }
 
-    // Se está mudando de unidade, verificar se pode acessar a nova unidade
     if (unidade_id && unidade_id !== produto.unidade_id) {
       if (!validarUnidadeAcesso(unidade_id, req)) {
         return res.status(403).json({
@@ -212,7 +209,6 @@ export async function deletarProduto(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode deletar produto desta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       return res.status(403).json({
         message: "Acesso negado: você não pode deletar este produto",
@@ -236,7 +232,6 @@ export async function buscarProdutosPorCategoria(req: Request, res: Response) {
   try {
     const whereClause: any = { categoria_id, ativo: true };
 
-    // Se usuário não pode acessar todas as unidades, filtrar pela unidade dele
     if (req.unidadePermitida !== null) {
       whereClause.unidade_id = req.unidadePermitida;
     }
@@ -263,7 +258,6 @@ export async function buscarProdutosPorUnidade(req: Request, res: Response) {
   const { unidade_id } = req.params;
   const unidadeIdNum = parseInt(unidade_id);
 
-  // Verificar se usuário pode acessar esta unidade
   if (!validarUnidadeAcesso(unidadeIdNum, req)) {
     return res.status(403).json({
       message:
@@ -294,7 +288,6 @@ export async function buscarProdutosEstoqueBaixo(req: Request, res: Response) {
   try {
     const whereClause: any = { ativo: true };
 
-    // Se usuário não pode acessar todas as unidades, filtrar pela unidade dele
     if (req.unidadePermitida !== null) {
       whereClause.unidade_id = req.unidadePermitida;
     }
@@ -321,7 +314,6 @@ export async function buscarProdutosEstoqueBaixo(req: Request, res: Response) {
   }
 }
 
-// Adicionar nova função para entrada de estoque
 export async function entradaEstoque(req: Request, res: Response) {
   const { id } = req.params;
   const { quantidade, observacao, documento, usuario_id } = req.body;
@@ -341,15 +333,12 @@ export async function entradaEstoque(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode fazer entrada nesta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       await transaction.rollback();
       return res.status(403).json({
         message: "Acesso negado: você não pode fazer entrada nesta unidade",
       });
     }
-
-    // Criar movimentação
     await MovimentacaoModel.create(
       {
         tipo: "ENTRADA",
@@ -362,12 +351,11 @@ export async function entradaEstoque(req: Request, res: Response) {
       { transaction }
     );
 
-    // Atualizar estoque
     const novaQuantidade = produto.quantidade_estoque + quantidade;
     await produto.update(
       {
         quantidade_estoque: novaQuantidade,
-        ativo: novaQuantidade > 0, // Ativar/desativar baseado na quantidade
+        ativo: novaQuantidade > 0,
       },
       { transaction }
     );
@@ -410,7 +398,6 @@ export async function saidaEstoque(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode fazer saída nesta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       await transaction.rollback();
       return res.status(403).json({
@@ -427,7 +414,6 @@ export async function saidaEstoque(req: Request, res: Response) {
       });
     }
 
-    // Criar movimentação
     await MovimentacaoModel.create(
       {
         tipo: "SAIDA",
@@ -440,12 +426,11 @@ export async function saidaEstoque(req: Request, res: Response) {
       { transaction }
     );
 
-    // Atualizar estoque
     const novaQuantidade = produto.quantidade_estoque - quantidade;
     await produto.update(
       {
         quantidade_estoque: novaQuantidade,
-        ativo: novaQuantidade > 0, // Ativar/desativar baseado na quantidade
+        ativo: novaQuantidade > 0,
       },
       { transaction }
     );

@@ -6,8 +6,11 @@ import {
   atualizarCategoria,
   deletarCategoria,
 } from "../controllers/CategoriaController";
+import { verificarAcessoUnidade } from "../middleware/VerificacaoUnidadeMiddleware";
 
 const router = Router();
+
+router.use(verificarAcessoUnidade);
 /**
  * @swagger
  * tags:

@@ -139,6 +139,8 @@ export function Select({
             !value && styles.selectorPlaceholder,
             disabled && styles.selectorTextDisabled,
           ]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
         >
           {value ? value.nome : placeholder}
         </Text>
@@ -223,10 +225,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
+    fontSize: 10,
     fontWeight: "600",
-    color: "#333",
-    marginBottom: 8,
+    color: "#374151",
+    marginBottom: 4,
     fontFamily: "NunitoSans_600SemiBold",
   },
   required: {
@@ -238,31 +240,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 12,
-    padding: 16,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 6,
+    padding: 8,
+    elevation: 0,
+    shadowColor: "transparent",
   },
   selectorDisabled: {
-    backgroundColor: "#f5f5f5",
-    borderColor: "#e0e0e0",
+    backgroundColor: "#f8fafc",
+    borderColor: "#e2e8f0",
   },
   selectorSelected: {
-    borderColor: "#2196F3",
-    backgroundColor: "#f8fbff",
+    borderColor: "#059669",
+    backgroundColor: "#f0fdf4",
   },
   selectorText: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: 12,
+    color: "#1e293b",
     flex: 1,
     fontFamily: "NunitoSans_400Regular",
   },
   selectorPlaceholder: {
-    color: "#999",
+    color: "#94a3b8",
   },
   selectorTextDisabled: {
     color: "#ccc",

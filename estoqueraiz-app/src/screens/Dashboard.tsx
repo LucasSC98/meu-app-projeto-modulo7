@@ -557,6 +557,15 @@ export default function PainelControle() {
             <MaterialIcons name="location-on" size={36} color="#8b5cf6" />
             <Text style={estilos.textoNavegacaoRapida}>Unidades</Text>
           </TouchableOpacity>
+          {podeAcessarTodasUnidades && (
+            <TouchableOpacity
+              style={estilos.itemNavegacaoRapida}
+              onPress={() => navegacao.navigate("UsuariosSistema")}
+            >
+              <MaterialIcons name="groups" size={36} color="#ef4444" />
+              <Text style={estilos.textoNavegacaoRapida}>Usuarios</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </ScrollView>

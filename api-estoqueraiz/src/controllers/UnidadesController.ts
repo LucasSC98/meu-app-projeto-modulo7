@@ -20,9 +20,7 @@ export async function buscarUnidadePorId(req: Request, res: Response) {
   const unidadeIdNum = parseInt(id);
 
   try {
-    // Gerentes podem acessar qualquer unidade
     if (req.usuario?.cargo !== "gerente") {
-      // Para não gerentes, só pode acessar detalhes da própria unidade
       if (req.unidadePermitida !== unidadeIdNum) {
         return res.status(403).json({
           message:

@@ -6,8 +6,11 @@ import {
   relatorioMovimentacoesPorPeriodo,
   buscarUsuariosComMovimentacoes,
 } from "../controllers/MovimentacoesController";
+import { verificarAcessoUnidade } from "../middleware/VerificacaoUnidadeMiddleware";
 
 const router = Router();
+
+router.use(verificarAcessoUnidade);
 
 router.post("/", criarMovimentacao);
 router.get("/", buscarMovimentacoes);
