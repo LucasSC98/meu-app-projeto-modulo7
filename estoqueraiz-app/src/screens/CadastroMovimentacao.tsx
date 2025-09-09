@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { Input } from "../components/Input";
-import { Select } from "../components/Select";
+import { Select } from "../components/Seletor";
 import api from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
