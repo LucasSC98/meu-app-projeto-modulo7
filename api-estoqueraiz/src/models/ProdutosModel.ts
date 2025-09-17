@@ -18,7 +18,7 @@ class Produto extends Model {
   public localizacao?: string;
   public imagem_url?: string;
   public ativo!: boolean;
-
+  public statusProduto!: "pendente" | "aprovado" | "rejeitado";
   public categoria_id!: number;
   public unidade_id!: number;
   public usuario_id!: number;
@@ -49,12 +49,12 @@ Produto.init(
     },
     preco_custo: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
+      allowNull: true,
       defaultValue: 0.0,
     },
     preco_venda: {
       type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
+      allowNull: true,
       defaultValue: 0.0,
     },
     quantidade_estoque: {
@@ -89,6 +89,10 @@ Produto.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
+    },
+    statusProduto: {
+      type: DataTypes.ENUM("pendente", "aprovado", "rejeitado"),
+      allowNull: false,
     },
     categoria_id: {
       type: DataTypes.INTEGER,
