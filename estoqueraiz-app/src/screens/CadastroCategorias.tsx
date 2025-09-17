@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { Input } from "../components/Input";
+import Header from "../components/Header";
 
 import api from "../services/api";
 import Toast from "react-native-toast-message";
@@ -80,17 +81,17 @@ export default function CadastroCategoria() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <Header
+        titulo="Cadastro de Categoria"
+        subtitulo="Preencha os dados da categoria"
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Text style={styles.titulo}>Cadastro de Categoria</Text>
-          <Text style={styles.subtitulo}>Preencha os dados da categoria</Text>
-        </View>
-
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nome</Text>
@@ -132,20 +133,11 @@ export default function CadastroCategoria() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
   scrollView: { flex: 1 },
-  scrollContainer: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 40 },
-  header: { paddingTop: 50, paddingBottom: 30, alignItems: "center" },
-  titulo: {
-    fontSize: 26,
-    fontWeight: "700",
-    fontFamily: "NunitoSans_700Bold",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  subtitulo: {
-    fontSize: 16,
-    fontFamily: "NunitoSans_400Regular",
-    color: "#6B7280",
-    textAlign: "center",
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
   },
   form: { flex: 1 },
   inputGroup: { marginBottom: 20 },

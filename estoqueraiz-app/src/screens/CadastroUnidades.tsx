@@ -20,6 +20,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 import { MaskedTextInput } from "react-native-mask-text";
 import { Input } from "../components/Input";
+import Header from "../components/Header";
 import api from "../services/api";
 import Toast from "react-native-toast-message";
 
@@ -150,22 +151,11 @@ export default function CadastroUnidade() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.botaoVoltar}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <View style={styles.headerTextos}>
-            <Text style={styles.titulo}>Cadastro de Unidade</Text>
-            <Text style={styles.subtitulo}>
-              Preencha os dados da nova filial
-            </Text>
-          </View>
-        </View>
-      </View>
+      <Header
+        titulo="Cadastro de Unidade"
+        subtitulo="Preencha os dados da nova filial"
+        onPressVoltar={() => navigation.goBack()}
+      />
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
@@ -336,61 +326,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-  },
-  header: {
-    backgroundColor: "#ffffff",
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  headerTextos: {
-    flex: 1,
-  },
-  botaoVoltar: {
-    marginRight: 16,
-  },
-  titulo: {
-    fontSize: 24,
-    fontWeight: "700",
-    fontFamily: "NunitoSans_700Bold",
-    color: "#1e293b",
-    marginBottom: 4,
-  },
-  subtitulo: {
-    fontSize: 14,
-    fontFamily: "NunitoSans_400Regular",
-    color: "#64748b",
-  },
-  botaoMapa: {
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f0fdf4",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#bbf7d0",
-  },
-  iconeMapaContainer: {
-    marginBottom: 2,
-  },
-  textoMapa: {
-    fontSize: 10,
-    fontFamily: "NunitoSans_600SemiBold",
-    color: "#059669",
   },
   keyboardContainer: {
     flex: 1,

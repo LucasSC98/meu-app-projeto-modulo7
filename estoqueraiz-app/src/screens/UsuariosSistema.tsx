@@ -7,7 +7,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
-  Alert,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -16,7 +15,9 @@ import { RootStackParamList } from "../types/navigation";
 import api from "../services/api";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Select } from "../components/Seletor";
+import { Seletor } from "../components/Seletor";
+import Header from "../components/Header";
+import { ModalConfirmacao } from "../components/ModalConfirmacao";
 
 type UsuariosSistemaScreenProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -66,6 +67,12 @@ export default function UsuariosSistema() {
     id: string;
     nome: string;
   } | null>(null);
+
+  // Estados para modal de confirmação
+  const [modalConfirmacaoVisivel, setModalConfirmacaoVisivel] = useState(false);
+  const [usuarioParaRejeitar, setUsuarioParaRejeitar] =
+    useState<Usuario | null>(null);
+  const [carregandoRejeicao, setCarregandoRejeicao] = useState(false);
 
   const [modalAlterarCargoVisivel, setModalAlterarCargoVisivel] =
     useState(false);
@@ -250,42 +257,46 @@ export default function UsuariosSistema() {
   }
 
   async function rejeitarUsuario(usuario: Usuario) {
-    Alert.alert(
-      "Confirmar Rejeição",
-      `Deseja realmente rejeitar o usuário ${usuario.nome}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Rejeitar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem("token");
-              await api.put(
-                `/usuarios/${usuario.id}/rejeitar`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
+    setUsuarioParaRejeitar(usuario);
+    setModalConfirmacaoVisivel(true);
+  }
 
-              Toast.show({
-                type: "success",
-                text1: "Sucesso",
-                text2: "Usuário rejeitado",
-              });
+  async function confirmarRejeicao() {
+    if (!usuarioParaRejeitar) return;
 
-              carregarDados();
-            } catch (error: any) {
-              Toast.show({
-                type: "error",
-                text1: "Erro",
-                text2:
-                  error.response?.data?.message || "Erro ao rejeitar usuário",
-              });
-            }
-          },
-        },
-      ]
-    );
+    setCarregandoRejeicao(true);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      await api.put(
+        `/usuarios/${usuarioParaRejeitar.id}/rejeitar`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      Toast.show({
+        type: "success",
+        text1: "Sucesso",
+        text2: "Usuário rejeitado",
+      });
+
+      setModalConfirmacaoVisivel(false);
+      setUsuarioParaRejeitar(null);
+      carregarDados();
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: error.response?.data?.message || "Erro ao rejeitar usuário",
+      });
+    } finally {
+      setCarregandoRejeicao(false);
+    }
+  }
+
+  function cancelarRejeicao() {
+    setModalConfirmacaoVisivel(false);
+    setUsuarioParaRejeitar(null);
+    setCarregandoRejeicao(false);
   }
 
   const opcoesCargo = [
@@ -332,24 +343,18 @@ export default function UsuariosSistema() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.titulo}>Usuários do Sistema</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <Header
+        titulo="Usuários do Sistema"
+        onPressVoltar={() => navigation.goBack()}
+      />
 
       <View style={styles.filtrosContainer}>
         <View style={styles.filtroRow}>
           <View style={styles.filtroItem}>
-            <Select
-              label="Unidade"
+            <Seletor
+              rotulo="Unidade"
               placeholder="Todas"
-              value={
+              valor={
                 filtroUnidade
                   ? {
                       id: filtroUnidade.toString(),
@@ -359,8 +364,8 @@ export default function UsuariosSistema() {
                     }
                   : { id: "", nome: "Todas" }
               }
-              options={opcoesUnidade}
-              onValueChange={(value) => {
+              opcoes={opcoesUnidade}
+              aoMudarValor={(value) => {
                 console.log("Unidade selecionada:", value);
                 const id = value?.id;
                 if (id === "") {
@@ -372,16 +377,16 @@ export default function UsuariosSistema() {
                   setFiltroUnidade(null);
                 }
               }}
-              searchable
-              accessibilityLabel="Selecionar filtro de unidade"
+              pesquisavel
+              rotuloAcessibilidade="Selecionar filtro de unidade"
             />
           </View>
 
           <View style={styles.filtroItem}>
-            <Select
-              label="Cargo"
+            <Seletor
+              rotulo="Cargo"
               placeholder="Todos"
-              value={
+              valor={
                 filtroCargo
                   ? {
                       id: filtroCargo,
@@ -391,20 +396,20 @@ export default function UsuariosSistema() {
                     }
                   : { id: "", nome: "Todos" }
               }
-              options={opcoesCargo}
-              onValueChange={(value) =>
+              opcoes={opcoesCargo}
+              aoMudarValor={(value) =>
                 setFiltroCargo(typeof value?.id === "string" ? value.id : "")
               }
-              searchable
-              accessibilityLabel="Selecionar filtro de cargo"
+              pesquisavel
+              rotuloAcessibilidade="Selecionar filtro de cargo"
             />
           </View>
 
           <View style={styles.filtroItem}>
-            <Select
-              label="Status"
+            <Seletor
+              rotulo="Status"
               placeholder="Todos"
-              value={
+              valor={
                 filtroStatus
                   ? {
                       id: filtroStatus,
@@ -414,12 +419,12 @@ export default function UsuariosSistema() {
                     }
                   : { id: "", nome: "Todos" }
               }
-              options={opcoesStatus}
-              onValueChange={(value) =>
+              opcoes={opcoesStatus}
+              aoMudarValor={(value) =>
                 setFiltroStatus(typeof value?.id === "string" ? value.id : "")
               }
-              searchable
-              accessibilityLabel="Selecionar filtro de status"
+              pesquisavel
+              rotuloAcessibilidade="Selecionar filtro de status"
             />
           </View>
 
@@ -536,25 +541,28 @@ export default function UsuariosSistema() {
 
                   <View style={styles.modalCampo}>
                     <Text style={styles.modalLabel}>Cargo:</Text>
-                    <Select
-                      label=""
-                      value={cargoAprovacao}
-                      onValueChange={(valor) => setCargoAprovacao(valor as any)}
+                    <Seletor
+                      rotulo=""
+                      valor={cargoAprovacao}
+                      aoMudarValor={(valor) => setCargoAprovacao(valor as any)}
                       placeholder="Selecione o cargo"
-                      options={opcoesCargoAprovacao}
+                      opcoes={opcoesCargoAprovacao}
                     />
                   </View>
 
                   <View style={styles.modalCampo}>
                     <Text style={styles.modalLabel}>Unidade:</Text>
-                    <Select
-                      label=""
-                      value={unidadeAprovacao}
-                      onValueChange={(valor) =>
+                    <Seletor
+                      rotulo=""
+                      valor={unidadeAprovacao}
+                      aoMudarValor={(valor) =>
                         setUnidadeAprovacao(valor as any)
                       }
                       placeholder="Selecione a unidade"
-                      options={unidades}
+                      opcoes={unidades.map((unidade) => ({
+                        id: unidade.id.toString(),
+                        nome: unidade.nome,
+                      }))}
                     />
                   </View>
 
@@ -586,8 +594,6 @@ export default function UsuariosSistema() {
           </View>
         </View>
       </Modal>
-
-      {/* Modal de alteração de cargo */}
       <Modal
         visible={modalAlterarCargoVisivel}
         animationType="slide"
@@ -627,14 +633,14 @@ export default function UsuariosSistema() {
 
                   <View style={styles.modalCampo}>
                     <Text style={styles.modalLabel}>Novo cargo:</Text>
-                    <Select
-                      label=""
-                      value={novoCargoSelecionado}
-                      onValueChange={(valor) =>
+                    <Seletor
+                      rotulo=""
+                      valor={novoCargoSelecionado}
+                      aoMudarValor={(valor) =>
                         setNovoCargoSelecionado(valor as any)
                       }
                       placeholder="Selecione o novo cargo"
-                      options={opcoesCargoAlteracao}
+                      opcoes={opcoesCargoAlteracao}
                     />
                   </View>
 
@@ -668,6 +674,24 @@ export default function UsuariosSistema() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Confirmação */}
+      <ModalConfirmacao
+        visivel={modalConfirmacaoVisivel}
+        titulo="Confirmar Rejeição"
+        mensagem={
+          usuarioParaRejeitar
+            ? `Deseja realmente rejeitar o usuário ${usuarioParaRejeitar.nome}?`
+            : ""
+        }
+        textoBotaoConfirmar="Rejeitar"
+        textoBotaoCancelar="Cancelar"
+        corBotaoConfirmar="#ef4444"
+        iconeBotaoConfirmar="person-remove"
+        onConfirmar={confirmarRejeicao}
+        onCancelar={cancelarRejeicao}
+        carregando={carregandoRejeicao}
+      />
     </View>
   );
 }
@@ -676,30 +700,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
-  },
-  header: {
-    backgroundColor: "#fff",
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  backButton: {
-    padding: 8,
-  },
-  titulo: {
-    fontSize: 16,
-    fontFamily: "NunitoSans_700Bold",
-    color: "#1e293b",
-  },
-  placeholder: {
-    width: 40,
   },
   filtrosContainer: {
     backgroundColor: "#fff",
