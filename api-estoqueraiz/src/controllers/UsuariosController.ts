@@ -3,6 +3,10 @@ import UsuariosModel from "../models/UsuariosModel";
 import UnidadesModel from "../models/UnidadesModel";
 import { enviarEmail } from "../utils/smtp";
 import sequelize from "../config/database";
+import {
+  validarCamposObrigatorios,
+  validarExistenciasPorId,
+} from "../utils/validacoes";
 
 interface AuthRequest extends Request {
   usuarioId?: number;
@@ -50,10 +54,16 @@ export const criarUsuario = async (req: Request, res: Response) => {
   try {
     const { nome, email, senha, cpf } = req.body;
 
-    if (!nome || !email || !senha || !cpf) {
+    const camposObrigatorios = ["nome", "email", "senha", "cpf"];
+    const camposFaltando = validarCamposObrigatorios(
+      { nome, email, senha, cpf },
+      camposObrigatorios
+    );
+
+    if (camposFaltando.length > 0) {
       await transaction.rollback();
       return res.status(400).json({
-        message: "Campos obrigatórios: nome, email, senha, cpf",
+        message: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`,
       });
     }
 
@@ -158,35 +168,44 @@ export const aprovarUsuario = async (req: Request, res: Response) => {
       });
     }
 
-    if (!cargo || !["estoquista", "financeiro"].includes(cargo)) {
+    const camposObrigatorios = ["cargo", "unidade_id"];
+    const camposFaltando = validarCamposObrigatorios(
+      { cargo, unidade_id },
+      camposObrigatorios
+    );
+
+    if (camposFaltando.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`,
+      });
+    }
+
+    if (!["estoquista", "financeiro"].includes(cargo)) {
       await transaction.rollback();
       return res.status(400).json({
         message: "Cargo deve ser estoquista ou financeiro",
       });
     }
+    const validacaoExistencia = await validarExistenciasPorId([
+      { model: UnidadesModel, id: unidade_id, nomeCampo: "Unidade" },
+      { model: UsuariosModel, id: id, nomeCampo: "Usuário" },
+    ]);
 
-    if (!unidade_id) {
+    if (!validacaoExistencia.valido) {
       await transaction.rollback();
-      return res.status(400).json({
-        message: "Unidade é obrigatória",
-      });
-    }
-
-    const unidade = await UnidadesModel.findByPk(unidade_id);
-    if (!unidade) {
-      await transaction.rollback();
-      return res.status(404).json({
-        message: "Unidade não encontrada",
-      });
+      return res.status(404).json({ message: validacaoExistencia.mensagem });
     }
 
     const usuario = await UsuariosModel.findByPk(id);
-    if (!usuario || usuario.status !== "pendente") {
+    if (usuario?.status !== "pendente") {
       await transaction.rollback();
       return res.status(404).json({
         message: "Usuário pendente não encontrado",
       });
     }
+
+    const unidade = await UnidadesModel.findByPk(unidade_id);
 
     await usuario.update(
       {
@@ -202,7 +221,11 @@ export const aprovarUsuario = async (req: Request, res: Response) => {
     enviarEmail(
       usuario.email,
       "Conta Aprovada - Sistema Estoque Raiz",
-      `Olá ${usuario.nome},\n\nSua conta foi aprovada pelo gerente!\n\nCargo: ${cargo}\nUnidade: ${unidade.nome}\n\nAgora você pode acessar o sistema mobile.`
+      `Olá ${
+        usuario.nome
+      },\n\nSua conta foi aprovada pelo gerente!\n\nCargo: ${cargo}\nUnidade: ${
+        unidade!.nome
+      }\n\nAgora você pode acessar o sistema mobile.`
     ).catch(console.error);
 
     return res.status(200).json({
@@ -232,12 +255,24 @@ export const atualizarUsuário = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { nome, email, senha, cpf } = req.body;
 
-    const usuario = await UsuariosModel.findByPk(id);
-    if (!usuario) {
+    const validacaoUsuario = await validarExistenciasPorId([
+      { model: UsuariosModel, id: id, nomeCampo: "Usuário" },
+    ]);
+
+    if (!validacaoUsuario.valido) {
       await transaction.rollback();
-      return res.status(404).json({ message: "Usuário não encontrado" });
+      return res.status(404).json({ message: validacaoUsuario.mensagem });
     }
-    if (email && email !== usuario.email) {
+
+    const usuario = await UsuariosModel.findByPk(id);
+    if (nome && nome.length < 3) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Nome deve ter pelo menos 3 caracteres",
+      });
+    }
+
+    if (email && email !== usuario!.email) {
       const usuarioExistente = await UsuariosModel.findOne({
         where: { email },
       });
@@ -249,7 +284,7 @@ export const atualizarUsuário = async (req: Request, res: Response) => {
       }
     }
 
-    if (cpf && cpf !== usuario.cpf) {
+    if (cpf && cpf !== usuario!.cpf) {
       const cpfExistente = await UsuariosModel.findOne({ where: { cpf } });
       if (cpfExistente) {
         await transaction.rollback();
@@ -265,20 +300,20 @@ export const atualizarUsuário = async (req: Request, res: Response) => {
     if (cpf) dadosAtualizacao.cpf = cpf;
     if (senha) dadosAtualizacao.senha = senha;
 
-    await usuario.update(dadosAtualizacao, { transaction });
+    await usuario!.update(dadosAtualizacao, { transaction });
 
     await transaction.commit();
 
     return res.status(200).json({
       message: "Usuário atualizado com sucesso",
       usuario: {
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        cpf: usuario.cpf,
-        status: usuario.status,
-        cargo: usuario.cargo,
-        unidade_id: usuario.unidade_id,
+        id: usuario!.id,
+        nome: usuario!.nome,
+        email: usuario!.email,
+        cpf: usuario!.cpf,
+        status: usuario!.status,
+        cargo: usuario!.cargo,
+        unidade_id: usuario!.unidade_id,
       },
     });
   } catch (error: unknown) {
@@ -295,14 +330,18 @@ export const deletarUsuário = async (req: Request, res: Response) => {
 
   try {
     const { id } = req.params;
+    const validacaoUsuario = await validarExistenciasPorId([
+      { model: UsuariosModel, id: id, nomeCampo: "Usuário" },
+    ]);
 
-    const usuario = await UsuariosModel.findByPk(id);
-    if (!usuario) {
+    if (!validacaoUsuario.valido) {
       await transaction.rollback();
-      return res.status(404).json({ message: "Usuário não encontrado" });
+      return res.status(404).json({ message: validacaoUsuario.mensagem });
     }
 
-    await usuario.destroy({ transaction });
+    const usuario = await UsuariosModel.findByPk(id);
+
+    await usuario!.destroy({ transaction });
 
     await transaction.commit();
 
@@ -330,9 +369,17 @@ export const rejeitarUsuario = async (req: Request, res: Response) => {
         message: "Acesso negado: apenas gerentes podem rejeitar usuários",
       });
     }
+    const validacaoUsuario = await validarExistenciasPorId([
+      { model: UsuariosModel, id: id, nomeCampo: "Usuário" },
+    ]);
+
+    if (!validacaoUsuario.valido) {
+      await transaction.rollback();
+      return res.status(404).json({ message: validacaoUsuario.mensagem });
+    }
 
     const usuario = await UsuariosModel.findByPk(id);
-    if (!usuario || usuario.status !== "pendente") {
+    if (usuario?.status !== "pendente") {
       await transaction.rollback();
       return res.status(404).json({
         message: "Usuário pendente não encontrado",
@@ -342,8 +389,6 @@ export const rejeitarUsuario = async (req: Request, res: Response) => {
     await usuario.update({ status: "rejeitado" }, { transaction });
 
     await transaction.commit();
-
-    // Enviar email de rejeição
     enviarEmail(
       usuario.email,
       "Conta Rejeitada - Sistema Estoque Raiz",
@@ -375,16 +420,37 @@ export const alterarCargoUsuario = async (req: Request, res: Response) => {
         message: "Acesso negado: apenas gerentes podem alterar cargos",
       });
     }
+    const camposObrigatorios = ["cargo"];
+    const camposFaltando = validarCamposObrigatorios(
+      { cargo },
+      camposObrigatorios
+    );
 
-    if (!cargo || !["gerente", "estoquista", "financeiro"].includes(cargo)) {
+    if (camposFaltando.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`,
+      });
+    }
+
+    if (!["gerente", "estoquista", "financeiro"].includes(cargo)) {
       await transaction.rollback();
       return res.status(400).json({
         message: "Cargo deve ser gerente, estoquista ou financeiro",
       });
     }
 
+    const validacaoUsuario = await validarExistenciasPorId([
+      { model: UsuariosModel, id: id, nomeCampo: "Usuário" },
+    ]);
+
+    if (!validacaoUsuario.valido) {
+      await transaction.rollback();
+      return res.status(404).json({ message: validacaoUsuario.mensagem });
+    }
+
     const usuario = await UsuariosModel.findByPk(id);
-    if (!usuario || usuario.status !== "aprovado") {
+    if (usuario?.status !== "aprovado") {
       await transaction.rollback();
       return res.status(404).json({
         message: "Usuário aprovado não encontrado",
