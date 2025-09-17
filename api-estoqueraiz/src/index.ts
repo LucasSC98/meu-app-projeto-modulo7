@@ -10,6 +10,8 @@ import rotaMovimentacoes from "./routes/rotaMovimentacoes";
 import "./models/UnidadesModel";
 import "./models/ProdutosModel";
 import "./models/MovimentacoesModel";
+import "./models/UsuariosModel";
+import "./models/CategoriasModel";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsDoc from "swagger-jsdoc";
 import { verificarToken } from "./middleware/AutenticacaoMiddleware";
@@ -25,6 +27,16 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "Sistema WMS para controle de estoque de insumos agrícolas",
     },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
+    security: [{ bearerAuth: [] }],
   },
   apis: ["./src/routes/*.ts"],
 };
