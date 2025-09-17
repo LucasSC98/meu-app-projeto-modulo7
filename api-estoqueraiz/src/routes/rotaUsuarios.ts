@@ -72,7 +72,7 @@ const router = express.Router();
  *           example: "MinhaSenh@123"
  *         cpf:
  *           type: string
- *           pattern: "^[0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2}$"
+ *           pattern: "^[0-9]{3}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9]{2}$"
  *           example: "123.456.789-00"
  *     UsuarioUpdate:
  *       type: object
@@ -93,7 +93,7 @@ const router = express.Router();
  *           example: "NovaSenh@456"
  *         cpf:
  *           type: string
- *           pattern: "^[0-9]{3}\.?[0-9]{3}\.?[0-9]{3}-?[0-9]{2}$"
+ *           pattern: "^[0-9]{3}\\.?[0-9]{3}\\.?[0-9]{3}-?[0-9]{2}$"
  *           example: "987.654.321-00"
  *     UsuarioAprovacao:
  *       type: object
