@@ -2,7 +2,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const api = axios.create({
-  baseURL: "http://192.168.1.19:3000",
+  baseURL: "http://192.168.1.5:3000",
 });
 
 api.interceptors.request.use(
@@ -16,7 +16,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor de resposta para tratamento de erros
 api.interceptors.response.use(
   (response) => response,
   (error) => {
