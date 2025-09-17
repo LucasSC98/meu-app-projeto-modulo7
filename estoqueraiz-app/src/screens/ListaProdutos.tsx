@@ -14,6 +14,8 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
+import Header from "../components/Header";
+import { ModalConfirmacao } from "../components/ModalConfirmacao";
 import api from "../services/api";
 import Toast from "react-native-toast-message";
 
@@ -41,6 +43,9 @@ export default function ListaProdutos() {
   const [modalCategoriaVisivel, setModalCategoriaVisivel] = useState(false);
   const [modalUnidadeVisivel, setModalUnidadeVisivel] = useState(false);
   const [modalFiltrosVisivel, setModalFiltrosVisivel] = useState(false);
+  const [modalExclusaoVisivel, setModalExclusaoVisivel] = useState(false);
+  const [produtoParaExcluir, setProdutoParaExcluir] = useState<any>(null);
+  const [carregandoExclusao, setCarregandoExclusao] = useState(false);
 
   useEffect(() => {
     carregarDados();
@@ -70,7 +75,7 @@ export default function ListaProdutos() {
 
       const produtosAtivos = Array.isArray(responseProdutos.data)
         ? responseProdutos.data.filter(
-            (produto: any) => produto.quantidade_estoque > 0
+            (produto: any) => produto.ativo !== false
           )
         : [];
 
@@ -98,7 +103,7 @@ export default function ListaProdutos() {
       setAtualizando(true);
       const response = await api.get("/produtos");
       const produtosAtivos = Array.isArray(response.data)
-        ? response.data.filter((produto: any) => produto.quantidade_estoque > 0)
+        ? response.data.filter((produto: any) => produto.ativo !== false)
         : [];
       setProdutos(produtosAtivos);
     } catch (error) {
@@ -200,6 +205,54 @@ export default function ListaProdutos() {
     }
   }
 
+  function editarProduto(produto: any) {
+    navigation.navigate("CadastroProduto", { produto });
+  }
+
+  function confirmarExclusao(produto: any) {
+    setProdutoParaExcluir(produto);
+    setModalExclusaoVisivel(true);
+  }
+
+  async function deletarProduto() {
+    if (!produtoParaExcluir) return;
+
+    setCarregandoExclusao(true);
+    try {
+      await api.delete(`/produtos/${produtoParaExcluir.id}`);
+
+      Toast.show({
+        type: "success",
+        text1: "Sucesso",
+        text2: "Produto deletado com sucesso",
+        position: "top",
+        visibilityTime: 3000,
+      });
+
+      // Atualiza a lista removendo o produto deletado
+      setProdutos(produtos.filter((p) => p.id !== produtoParaExcluir.id));
+      setProdutoParaExcluir(null);
+      setModalExclusaoVisivel(false);
+    } catch (error) {
+      console.error("Erro ao deletar produto:", error);
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Não foi possível deletar o produto",
+        position: "top",
+        visibilityTime: 3000,
+      });
+    } finally {
+      setCarregandoExclusao(false);
+    }
+  }
+
+  function cancelarExclusao() {
+    setModalExclusaoVisivel(false);
+    setProdutoParaExcluir(null);
+    setCarregandoExclusao(false);
+  }
+
   if (carregando) {
     return (
       <View style={estilos.containerCarregando}>
@@ -210,26 +263,18 @@ export default function ListaProdutos() {
 
   return (
     <View style={estilos.container}>
-      <View style={estilos.header}>
-        <TouchableOpacity
-          style={estilos.botaoVoltar}
-          onPress={() => navigation.navigate("Dashboard")}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={estilos.headerTextos}>
-          <Text style={estilos.titulo}>Lista de Produtos</Text>
-          <Text style={estilos.subtitulo}>
-            {produtosFiltrados.length} produto(s) encontrado(s)
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={estilos.botaoFiltros}
-          onPress={() => setModalFiltrosVisivel(true)}
-        >
-          <MaterialIcons name="filter-list" size={24} color="#2196F3" />
-        </TouchableOpacity>
-      </View>
+      <Header
+        titulo="Lista de Produtos"
+        subtitulo={`${produtosFiltrados.length} produto(s) encontrado(s)`}
+        botaoDireita={
+          <TouchableOpacity
+            style={estilos.botaoFiltros}
+            onPress={() => setModalFiltrosVisivel(true)}
+          >
+            <MaterialIcons name="filter-list" size={24} color="#2196F3" />
+          </TouchableOpacity>
+        }
+      />
 
       <View style={estilos.barraPesquisa}>
         <MaterialIcons name="search" size={20} color="#666" />
@@ -395,6 +440,26 @@ export default function ListaProdutos() {
                       </Text>
                     </View>
                   )}
+                </View>
+
+                <View style={estilos.acoesProduto}>
+                  <TouchableOpacity
+                    style={estilos.botaoEditar}
+                    onPress={() => editarProduto(produto)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="edit" size={18} color="#2196F3" />
+                    <Text style={estilos.textoBotaoEditar}>Editar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={estilos.botaoDeletar}
+                    onPress={() => confirmarExclusao(produto)}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialIcons name="delete" size={18} color="#F44336" />
+                    <Text style={estilos.textoBotaoDeletar}>Excluir</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -685,6 +750,24 @@ export default function ListaProdutos() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <ModalConfirmacao
+        visivel={modalExclusaoVisivel}
+        titulo="Confirmar Exclusão"
+        mensagem={
+          produtoParaExcluir
+            ? `Tem certeza que deseja excluir o produto "${produtoParaExcluir.nome}"?\n\nEsta ação não pode ser desfeita.`
+            : ""
+        }
+        textoBotaoConfirmar="Excluir"
+        textoBotaoCancelar="Cancelar"
+        corBotaoConfirmar="#ef4444"
+        iconeBotaoConfirmar="delete"
+        onConfirmar={deletarProduto}
+        onCancelar={cancelarExclusao}
+        carregando={carregandoExclusao}
+      />
     </View>
   );
 }
@@ -877,6 +960,51 @@ const estilos = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     marginLeft: 6,
+  },
+  acoesProduto: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    gap: 8,
+  },
+  botaoEditar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#E3F2FD",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#2196F3",
+  },
+  textoBotaoEditar: {
+    fontSize: 12,
+    color: "#2196F3",
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  botaoDeletar: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFEBEE",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#F44336",
+  },
+  textoBotaoDeletar: {
+    fontSize: 12,
+    color: "#F44336",
+    fontWeight: "600",
+    marginLeft: 4,
   },
   modalContainer: {
     flex: 1,
