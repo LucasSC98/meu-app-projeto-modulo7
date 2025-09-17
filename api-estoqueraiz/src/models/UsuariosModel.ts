@@ -25,6 +25,12 @@ class Usuario extends Model {
   public estaAprovado(): boolean {
     return this.status === "aprovado";
   }
+
+  public toJSON(): object {
+    const values = Object.assign({}, this.get());
+    delete values.senha;
+    return values;
+  }
 }
 
 Usuario.init(
@@ -47,8 +53,14 @@ Usuario.init(
       allowNull: false,
       unique: true,
       validate: {
-        isEmail: { msg: "Email inválido" },
         notEmpty: { msg: "Email é obrigatório" },
+        isValidEmail(value: string) {
+          if (!validarEmail(value)) {
+            throw new Error(
+              "Email inválido, exemplo de email a ser usado: usuario@gmail.com"
+            );
+          }
+        },
       },
     },
     senha: {
@@ -56,7 +68,13 @@ Usuario.init(
       allowNull: false,
       validate: {
         notEmpty: { msg: "Senha é obrigatória" },
-        len: { args: [6, 255], msg: "Senha deve ter pelo menos 6 caracteres" },
+        isValidSenha(value: string) {
+          if (!validarSenha(value)) {
+            throw new Error(
+              "Senha deve ter pelo menos 6 caracteres, incluindo uma letra maiúscula e um número"
+            );
+          }
+        },
       },
     },
     cpf: {
