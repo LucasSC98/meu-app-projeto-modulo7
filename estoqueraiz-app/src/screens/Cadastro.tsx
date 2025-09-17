@@ -1,9 +1,3 @@
-import {
-  NunitoSans_400Regular,
-  NunitoSans_600SemiBold,
-  NunitoSans_700Bold,
-  useFonts,
-} from "@expo-google-fonts/nunito-sans";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { cpf as cpfValidator } from "cpf-cnpj-validator";
@@ -22,6 +16,7 @@ import { Input } from "../components/Input";
 import { RootStackParamList } from "../types/navigation";
 import Toast from "react-native-toast-message";
 import api from "../services/api";
+import { useAppFonts } from "../hooks/useAppFonts";
 
 export default function Cadastro() {
   type CadastroScreenProp = NativeStackNavigationProp<
@@ -29,12 +24,7 @@ export default function Cadastro() {
     "Cadastro"
   >;
   const navigation = useNavigation<CadastroScreenProp>();
-
-  const [fontesLoaded] = useFonts({
-    NunitoSans_400Regular,
-    NunitoSans_600SemiBold,
-    NunitoSans_700Bold,
-  });
+  const fontesCarregadas = useAppFonts();
 
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
@@ -111,7 +101,7 @@ export default function Cadastro() {
     }
   }
 
-  if (!fontesLoaded) {
+  if (!fontesCarregadas) {
     return null;
   }
 

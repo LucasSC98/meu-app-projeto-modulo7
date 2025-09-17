@@ -6,6 +6,12 @@ import UsuarioModel from "../models/UsuariosModel";
 import MovimentacaoModel from "../models/MovimentacoesModel";
 import sequelize from "../config/database";
 import { validarUnidadeAcesso } from "../middleware/VerificacaoUnidadeMiddleware";
+import {
+  valorPositivo,
+  valorMaiorQueZero,
+  validarExistenciasPorId,
+  validarCamposObrigatorios,
+} from "../utils/validacoes";
 
 export async function buscarTodosProdutos(req: Request, res: Response) {
   try {
@@ -64,52 +70,16 @@ export async function buscarProdutoPorId(req: Request, res: Response) {
 }
 
 export async function criarProduto(req: Request, res: Response) {
-  const {
-    nome,
-    descricao,
-    codigo_barras,
-    preco_custo,
-    preco_venda,
-    quantidade_estoque,
-    quantidade_minima,
-    data_validade,
-    lote,
-    localizacao,
-    imagem_url,
-    categoria_id,
-    unidade_id,
-    usuario_id,
-  } = req.body;
-
-  // Verificar se usuário pode cadastrar produto nesta unidade
-  if (!validarUnidadeAcesso(unidade_id, req)) {
-    return res.status(403).json({
-      message: "Acesso negado: você não pode cadastrar produtos nesta unidade",
-    });
-  }
-
-  if (
-    !nome ||
-    !preco_custo ||
-    !preco_venda ||
-    !categoria_id ||
-    !unidade_id ||
-    !usuario_id
-  ) {
-    return res.status(400).json({
-      message: "Campos obrigatórios não preenchidos",
-    });
-  }
-
+  const transaction = await sequelize.transaction();
   try {
-    const produto = await ProdutoModel.create({
+    const {
       nome,
       descricao,
       codigo_barras,
       preco_custo,
       preco_venda,
-      quantidade_estoque: quantidade_estoque || 0,
-      quantidade_minima: quantidade_minima || 1,
+      quantidade_estoque,
+      quantidade_minima,
       data_validade,
       lote,
       localizacao,
@@ -117,13 +87,111 @@ export async function criarProduto(req: Request, res: Response) {
       categoria_id,
       unidade_id,
       usuario_id,
-      ativo: (quantidade_estoque || 0) > 0,
-    });
+    } = req.body;
 
-    return res
-      .status(201)
-      .json({ message: "Produto criado com sucesso", produto });
+    // Validação de unidade de acesso
+    if (!validarUnidadeAcesso(unidade_id, req)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        message:
+          "Acesso negado: você não pode cadastrar produtos nesta unidade",
+      });
+    }
+
+    // Campos obrigatórios base
+    const camposObrigatoriosBase = [
+      "nome",
+      "categoria_id",
+      "unidade_id",
+      "usuario_id",
+    ];
+    const camposFaltandoBase = validarCamposObrigatorios(
+      req.body,
+      camposObrigatoriosBase
+    );
+    if (camposFaltandoBase.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: `Campos obrigatórios faltando: ${camposFaltandoBase.join(
+          ", "
+        )}`,
+      });
+    }
+
+    // Validações de valores positivos (apenas se fornecidos)
+    if (preco_custo !== undefined && !valorPositivo(preco_custo)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Preço de custo deve ser positivo",
+      });
+    }
+    if (preco_venda !== undefined && !valorPositivo(preco_venda)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Preço de venda deve ser positivo",
+      });
+    }
+    if (
+      quantidade_estoque !== undefined &&
+      !valorMaiorQueZero(quantidade_estoque)
+    ) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Quantidade em estoque deve ser maior que zero",
+      });
+    }
+    if (
+      quantidade_minima !== undefined &&
+      !valorMaiorQueZero(quantidade_minima)
+    ) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Quantidade mínima deve ser maior que zero",
+      });
+    }
+
+    // Validação de existência
+    const validacaoExistencia = await validarExistenciasPorId([
+      { model: CategoriaModel, id: categoria_id, nomeCampo: "Categoria" },
+      { model: UsuarioModel, id: usuario_id, nomeCampo: "Usuário" },
+    ]);
+    if (!validacaoExistencia.valido) {
+      await transaction.rollback();
+      return res.status(400).json({ message: validacaoExistencia.mensagem });
+    }
+
+    // Define status baseado nos preços
+    const statusProduto = preco_custo && preco_venda ? "aprovado" : "pendente";
+
+    const produto = await ProdutoModel.create(
+      {
+        nome,
+        descricao,
+        codigo_barras,
+        preco_custo: preco_custo || 0.0,
+        preco_venda: preco_venda || 0.0,
+        quantidade_estoque: quantidade_estoque || 0,
+        quantidade_minima: quantidade_minima || 1,
+        data_validade,
+        lote,
+        localizacao,
+        imagem_url,
+        categoria_id,
+        unidade_id,
+        usuario_id,
+        ativo: (quantidade_estoque || 0) > 0,
+        statusProduto,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+    return res.status(201).json({
+      message: "Produto criado com sucesso",
+      produto,
+    });
   } catch (error: unknown) {
+    await transaction.rollback();
     return res.status(500).json({
       message: "Erro ao criar produto",
       error: error instanceof Error ? error.message : String(error),
@@ -157,21 +225,54 @@ export async function atualizarProduto(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode atualizar produto desta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       return res.status(403).json({
         message: "Acesso negado: você não pode atualizar este produto",
       });
     }
 
-    // Se está mudando de unidade, verificar se pode acessar a nova unidade
     if (unidade_id && unidade_id !== produto.unidade_id) {
       if (!validarUnidadeAcesso(unidade_id, req)) {
         return res.status(403).json({
           message:
-            "Acesso negado: você não pode mover produto para esta unidade",
+            "Acesso negado: você não tem permissão para mover este produto para outra unidade",
         });
       }
+    }
+
+    // Validação condicional: só validar campos fornecidos
+    const camposParaValidar = [];
+    if (categoria_id !== undefined && categoria_id !== null) {
+      camposParaValidar.push({
+        model: CategoriaModel,
+        id: categoria_id,
+        nomeCampo: "Categoria",
+      });
+    }
+    // Sempre validar usuário (não editável via req.body)
+    camposParaValidar.push({
+      model: UsuarioModel,
+      id: produto.usuario_id,
+      nomeCampo: "Usuário",
+    });
+
+    if (camposParaValidar.length > 0) {
+      const validacaoIds = await validarExistenciasPorId(camposParaValidar);
+      if (!validacaoIds.valido) {
+        return res.status(400).json({
+          message: validacaoIds.mensagem,
+        });
+      }
+    }
+
+    // Determinar o novo statusProduto: se preços forem fornecidos e o produto for "pendente", alterar para "aprovado"
+    let novoStatusProduto = produto.statusProduto;
+    if (
+      preco_custo !== undefined &&
+      preco_venda !== undefined &&
+      produto.statusProduto === "pendente"
+    ) {
+      novoStatusProduto = "aprovado";
     }
 
     await produto.update({
@@ -186,9 +287,14 @@ export async function atualizarProduto(req: Request, res: Response) {
       lote,
       localizacao,
       imagem_url,
-      categoria_id,
-      unidade_id,
-      ativo: quantidade_estoque > 0,
+      categoria_id:
+        categoria_id !== undefined ? categoria_id : produto.categoria_id, // Usar valor existente se não fornecido
+      unidade_id: unidade_id !== undefined ? unidade_id : produto.unidade_id,
+      ativo:
+        quantidade_estoque !== undefined
+          ? quantidade_estoque > 0
+          : produto.ativo,
+      statusProduto: novoStatusProduto,
     });
 
     return res
@@ -212,7 +318,6 @@ export async function deletarProduto(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode deletar produto desta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       return res.status(403).json({
         message: "Acesso negado: você não pode deletar este produto",
@@ -236,7 +341,6 @@ export async function buscarProdutosPorCategoria(req: Request, res: Response) {
   try {
     const whereClause: any = { categoria_id, ativo: true };
 
-    // Se usuário não pode acessar todas as unidades, filtrar pela unidade dele
     if (req.unidadePermitida !== null) {
       whereClause.unidade_id = req.unidadePermitida;
     }
@@ -263,7 +367,6 @@ export async function buscarProdutosPorUnidade(req: Request, res: Response) {
   const { unidade_id } = req.params;
   const unidadeIdNum = parseInt(unidade_id);
 
-  // Verificar se usuário pode acessar esta unidade
   if (!validarUnidadeAcesso(unidadeIdNum, req)) {
     return res.status(403).json({
       message:
@@ -294,7 +397,6 @@ export async function buscarProdutosEstoqueBaixo(req: Request, res: Response) {
   try {
     const whereClause: any = { ativo: true };
 
-    // Se usuário não pode acessar todas as unidades, filtrar pela unidade dele
     if (req.unidadePermitida !== null) {
       whereClause.unidade_id = req.unidadePermitida;
     }
@@ -321,7 +423,6 @@ export async function buscarProdutosEstoqueBaixo(req: Request, res: Response) {
   }
 }
 
-// Adicionar nova função para entrada de estoque
 export async function entradaEstoque(req: Request, res: Response) {
   const { id } = req.params;
   const { quantidade, observacao, documento, usuario_id } = req.body;
@@ -341,15 +442,12 @@ export async function entradaEstoque(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode fazer entrada nesta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       await transaction.rollback();
       return res.status(403).json({
         message: "Acesso negado: você não pode fazer entrada nesta unidade",
       });
     }
-
-    // Criar movimentação
     await MovimentacaoModel.create(
       {
         tipo: "ENTRADA",
@@ -362,12 +460,11 @@ export async function entradaEstoque(req: Request, res: Response) {
       { transaction }
     );
 
-    // Atualizar estoque
     const novaQuantidade = produto.quantidade_estoque + quantidade;
     await produto.update(
       {
         quantidade_estoque: novaQuantidade,
-        ativo: novaQuantidade > 0, // Ativar/desativar baseado na quantidade
+        ativo: novaQuantidade > 0,
       },
       { transaction }
     );
@@ -410,7 +507,6 @@ export async function saidaEstoque(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Verificar se usuário pode fazer saída nesta unidade
     if (!validarUnidadeAcesso(produto.unidade_id, req)) {
       await transaction.rollback();
       return res.status(403).json({
@@ -427,7 +523,6 @@ export async function saidaEstoque(req: Request, res: Response) {
       });
     }
 
-    // Criar movimentação
     await MovimentacaoModel.create(
       {
         tipo: "SAIDA",
@@ -440,12 +535,11 @@ export async function saidaEstoque(req: Request, res: Response) {
       { transaction }
     );
 
-    // Atualizar estoque
     const novaQuantidade = produto.quantidade_estoque - quantidade;
     await produto.update(
       {
         quantidade_estoque: novaQuantidade,
-        ativo: novaQuantidade > 0, // Ativar/desativar baseado na quantidade
+        ativo: novaQuantidade > 0,
       },
       { transaction }
     );
@@ -464,6 +558,117 @@ export async function saidaEstoque(req: Request, res: Response) {
     await transaction.rollback();
     return res.status(500).json({
       message: "Erro ao realizar saída de estoque",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function aprovarProduto(req: Request, res: Response) {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { preco_custo, preco_venda } = req.body;
+    if (
+      !req.usuario?.cargo ||
+      !["financeiro", "gerente"].includes(req.usuario.cargo)
+    ) {
+      await transaction.rollback();
+      return res.status(403).json({
+        message:
+          "Acesso negado: apenas financeiro ou gerente podem definir preços.",
+      });
+    }
+    const camposObrigatorios = ["preco_custo", "preco_venda"];
+    const camposFaltando = validarCamposObrigatorios(
+      req.body,
+      camposObrigatorios
+    );
+    if (camposFaltando.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`,
+      });
+    }
+    if (!valorPositivo(preco_custo)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Preço de custo deve ser positivo",
+      });
+    }
+    if (!valorPositivo(preco_venda)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Preço de venda deve ser positivo",
+      });
+    }
+
+    const produto = await ProdutoModel.findByPk(id, { transaction });
+    if (!produto) {
+      await transaction.rollback();
+      return res.status(404).json({ message: "Produto não encontrado" });
+    }
+
+    if (produto.statusProduto !== "pendente") {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Produto já foi aprovado ou rejeitado",
+      });
+    }
+
+    await produto.update(
+      {
+        preco_custo,
+        preco_venda,
+        statusProduto: "aprovado",
+        ativo: produto.quantidade_estoque > 0,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+    return res.status(200).json({
+      message: "Produto aprovado com preços",
+      produto,
+    });
+  } catch (error: unknown) {
+    await transaction.rollback();
+    return res.status(500).json({
+      message: "Erro ao aprovar produto",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+export async function buscarProdutosPendentes(req: Request, res: Response) {
+  try {
+    if (
+      !req.usuario?.cargo ||
+      !["financeiro", "gerente"].includes(req.usuario.cargo)
+    ) {
+      return res.status(403).json({
+        message:
+          "Acesso negado: apenas financeiro ou gerente podem visualizar produtos pendentes.",
+      });
+    }
+    const whereClause: any = { statusProduto: "pendente", ativo: true };
+    if (req.usuario.cargo === "financeiro" && req.usuario?.unidade_id) {
+      whereClause.unidade_id = req.usuario.unidade_id;
+    }
+
+    const produtos = await ProdutoModel.findAll({
+      where: whereClause,
+      include: [
+        { model: CategoriaModel, as: "categoria" },
+        { model: UnidadeModel, as: "unidade" },
+        { model: UsuarioModel, as: "usuario" },
+      ],
+      order: [["criado_em", "DESC"]],
+    });
+
+    return res.status(200).json(produtos);
+  } catch (error: unknown) {
+    return res.status(500).json({
+      message: "Erro ao buscar produtos pendentes",
       error: error instanceof Error ? error.message : String(error),
     });
   }

@@ -6,8 +6,11 @@ import {
   atualizarCategoria,
   deletarCategoria,
 } from "../controllers/CategoriaController";
+import { verificarAcessoUnidade } from "../middleware/VerificacaoUnidadeMiddleware";
 
 const router = Router();
+
+router.use(verificarAcessoUnidade);
 /**
  * @swagger
  * tags:
@@ -21,6 +24,8 @@ const router = Router();
  *     tags:
  *       - Categorias
  *     summary: Retorna todas as categorias
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de categorias retornada com sucesso
@@ -34,6 +39,8 @@ router.get("/", buscarTodasCategorias);
  *     tags:
  *       - Categorias
  *     summary: Retorna uma categoria pelo ID
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -56,6 +63,8 @@ router.get("/:id", buscarCategoriaPorId);
  *     tags:
  *       - Categorias
  *     summary: Cria uma nova categoria
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -80,6 +89,8 @@ router.post("/", criarCategoria);
  *     tags:
  *       - Categorias
  *     summary: Atualiza uma categoria pelo ID
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -113,6 +124,8 @@ router.put("/:id", atualizarCategoria);
  *     tags:
  *       - Categorias
  *     summary: Deleta uma categoria pelo ID
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

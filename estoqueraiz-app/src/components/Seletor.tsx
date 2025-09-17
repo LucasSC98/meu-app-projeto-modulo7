@@ -8,349 +8,332 @@ import {
   StyleSheet,
   TextInput,
   Platform,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
-interface SelectOption {
+interface OpcaoSelecao {
   id: number | string;
   nome: string;
   [key: string]: any;
 }
 
-interface SelectProps {
-  label: string;
+interface PropriedadesSelecao {
+  rotulo: string;
   placeholder: string;
-  value: SelectOption | null;
-  options: SelectOption[];
-  onValueChange: (value: SelectOption | null) => void;
-  required?: boolean;
-  disabled?: boolean;
-  searchable?: boolean;
-  accessibilityLabel?: string;
-  renderOption?: (item: SelectOption) => React.ReactNode;
+  valor: OpcaoSelecao | null;
+  opcoes: OpcaoSelecao[];
+  aoMudarValor: (valor: OpcaoSelecao | null) => void;
+  obrigatorio?: boolean;
+  desabilitado?: boolean;
+  pesquisavel?: boolean;
+  rotuloAcessibilidade?: string;
+  renderizarOpcao?: (
+    item: OpcaoSelecao,
+    isSelected: boolean
+  ) => React.ReactNode;
 }
 
-export function Select({
-  label,
+const COR_PRIMARIA = "#3B82F6";
+const COR_PRIMARIA_FUNDO = "#EFF6FF";
+
+export function Seletor({
+  rotulo,
   placeholder,
-  value,
-  options,
-  onValueChange,
-  required = false,
-  disabled = false,
-  searchable = false,
-  accessibilityLabel,
-  renderOption,
-}: SelectProps) {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [searchText, setSearchText] = useState("");
-  const [filteredOptions, setFilteredOptions] = useState(options);
+  valor,
+  opcoes,
+  aoMudarValor,
+  obrigatorio,
+  desabilitado,
+  pesquisavel,
+  rotuloAcessibilidade,
+  renderizarOpcao,
+}: PropriedadesSelecao) {
+  const [modalVisivel, setModalVisivel] = useState(false);
+  const [textoPesquisa, setTextoPesquisa] = useState("");
 
-  const handleOpenModal = () => {
-    if (disabled) return;
-    setModalVisible(true);
-    setSearchText("");
-    setFilteredOptions(options);
+  const abrirModal = () => !desabilitado && setModalVisivel(true);
+  const fecharModal = () => {
+    setModalVisivel(false);
+    setTextoPesquisa("");
   };
 
-  const handleCloseModal = () => {
-    setModalVisible(false);
-    setSearchText("");
+  const selecionarOpcao = (opcao: OpcaoSelecao | null) => {
+    aoMudarValor(opcao);
+    fecharModal();
   };
 
-  const handleSelectOption = (option: SelectOption) => {
-    onValueChange(option);
-    handleCloseModal();
-  };
+  const opcoesFiltradas = textoPesquisa
+    ? opcoes.filter((o) =>
+        o.nome.toLowerCase().includes(textoPesquisa.toLowerCase())
+      )
+    : opcoes;
 
-  const handleClearSelection = () => {
-    onValueChange(null);
-    handleCloseModal();
-  };
+  const renderItem = ({ item }: { item: OpcaoSelecao }) => {
+    const selecionado = valor?.id === item.id;
+    const conteudo = renderizarOpcao ? (
+      renderizarOpcao(item, selecionado)
+    ) : (
+      <Text
+        style={[styles.textoOpcao, selecionado && styles.textoOpcaoSelecionada]}
+      >
+        {item.nome}
+      </Text>
+    );
 
-  const handleSearch = (text: string) => {
-    setSearchText(text);
-    if (text.trim() === "") {
-      setFilteredOptions(options);
-    } else {
-      const filtered = options.filter((option) =>
-        option.nome.toLowerCase().includes(text.toLowerCase())
-      );
-      setFilteredOptions(filtered);
-    }
-  };
-
-  const renderDefaultOption = ({ item }: { item: SelectOption }) => (
-    <TouchableOpacity
-      style={styles.optionItem}
-      onPress={() => handleSelectOption(item)}
-      accessibilityLabel={`Selecionar ${item.nome}`}
-      accessibilityRole="button"
-    >
-      <Text style={styles.optionText}>{item.nome}</Text>
-      {value?.id === item.id && (
-        <MaterialIcons name="check" size={20} color="#2196F3" />
-      )}
-    </TouchableOpacity>
-  );
-
-  const renderOptionItem = ({ item }: { item: SelectOption }) => {
-    if (renderOption) {
-      return (
-        <TouchableOpacity
-          style={styles.optionItem}
-          onPress={() => handleSelectOption(item)}
-          accessibilityLabel={`Selecionar ${item.nome}`}
-          accessibilityRole="button"
-        >
-          {renderOption(item)}
-          {value?.id === item.id && (
-            <MaterialIcons name="check" size={20} color="#2196F3" />
-          )}
-        </TouchableOpacity>
-      );
-    }
-    return renderDefaultOption({ item });
+    return (
+      <TouchableOpacity
+        style={styles.itemOpcao}
+        onPress={() => selecionarOpcao(item)}
+        accessibilityLabel={`Selecionar ${item.nome}`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: selecionado }}
+      >
+        {conteudo}
+        {selecionado && (
+          <MaterialIcons name="check" size={24} color={COR_PRIMARIA} />
+        )}
+      </TouchableOpacity>
+    );
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>
-        {label} {required && <Text style={styles.required}>*</Text>}
+      <Text style={styles.rotulo}>
+        {rotulo} {obrigatorio && <Text style={styles.obrigatorio}>*</Text>}
       </Text>
 
       <TouchableOpacity
         style={[
-          styles.selector,
-          disabled && styles.selectorDisabled,
-          value && styles.selectorSelected,
+          styles.seletor,
+          desabilitado && styles.seletorDesabilitado,
+          valor && styles.seletorAtivo,
         ]}
-        onPress={handleOpenModal}
-        disabled={disabled}
-        accessibilityLabel={
-          accessibilityLabel || `Selecionar ${label.toLowerCase()}`
-        }
+        onPress={abrirModal}
+        disabled={desabilitado}
+        accessibilityLabel={rotuloAcessibilidade || `Selecionar ${rotulo}`}
         accessibilityRole="button"
-        accessibilityState={{ disabled }}
+        accessibilityState={{ disabled: desabilitado, expanded: modalVisivel }}
       >
         <Text
           style={[
-            styles.selectorText,
-            !value && styles.selectorPlaceholder,
-            disabled && styles.selectorTextDisabled,
+            styles.textoSeletor,
+            !valor && styles.textoSeletorPlaceholder,
+            desabilitado && styles.textoSeletorDesabilitado,
           ]}
+          numberOfLines={1}
         >
-          {value ? value.nome : placeholder}
+          {valor ? valor.nome : placeholder}
         </Text>
         <MaterialIcons
           name="arrow-drop-down"
           size={24}
-          color={disabled ? "#ccc" : "#666"}
+          color={desabilitado ? "#ccc" : "#666"}
         />
       </TouchableOpacity>
 
       <Modal
         animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={handleCloseModal}
+        transparent
+        visible={modalVisivel}
+        onRequestClose={fecharModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{label}</Text>
-              <TouchableOpacity
-                onPress={handleCloseModal}
-                accessibilityLabel="Fechar modal"
-                accessibilityRole="button"
-              >
-                <MaterialIcons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-
-            {searchable && (
-              <View style={styles.searchContainer}>
-                <MaterialIcons name="search" size={20} color="#666" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Buscar..."
-                  value={searchText}
-                  onChangeText={handleSearch}
-                  accessibilityLabel="Campo de busca"
-                />
-              </View>
-            )}
-
-            <FlatList
-              data={filteredOptions}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderOptionItem}
-              style={styles.optionsList}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <MaterialIcons name="search-off" size={48} color="#ccc" />
-                  <Text style={styles.emptyText}>
-                    {searchText
-                      ? "Nenhum resultado encontrado"
-                      : "Nenhuma opção disponível"}
-                  </Text>
+        <TouchableWithoutFeedback onPress={fecharModal}>
+          <View style={styles.overlayModal}>
+            <TouchableWithoutFeedback>
+              <View style={styles.conteudoModal}>
+                <View style={styles.puxadorModalContainer}>
+                  <View style={styles.puxadorModal} />
                 </View>
-              }
-            />
 
-            {value && (
-              <View style={styles.modalFooter}>
-                <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={handleClearSelection}
-                  accessibilityLabel="Limpar seleção"
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.clearButtonText}>Limpar</Text>
-                </TouchableOpacity>
+                <View style={styles.cabecalhoModal}>
+                  <Text style={styles.tituloModal}>{rotulo}</Text>
+                  <TouchableOpacity onPress={fecharModal}>
+                    <MaterialIcons name="close" size={24} color="#333" />
+                  </TouchableOpacity>
+                </View>
+
+                {pesquisavel && (
+                  <View style={styles.containerPesquisa}>
+                    <MaterialIcons name="search" size={20} color="#666" />
+                    <TextInput
+                      style={styles.inputPesquisa}
+                      placeholder="Buscar..."
+                      value={textoPesquisa}
+                      onChangeText={setTextoPesquisa}
+                    />
+                  </View>
+                )}
+
+                <FlatList
+                  data={opcoesFiltradas}
+                  keyExtractor={(item) => item.id.toString()}
+                  renderItem={renderItem}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={
+                    <View style={styles.containerVazio}>
+                      <MaterialIcons name="search-off" size={48} color="#ccc" />
+                      <Text style={styles.textoVazio}>
+                        {textoPesquisa
+                          ? "Nenhum resultado encontrado"
+                          : "Nenhuma opção disponível"}
+                      </Text>
+                    </View>
+                  }
+                />
+
+                {valor && (
+                  <View style={styles.rodapeModal}>
+                    <TouchableOpacity
+                      onPress={() => selecionarOpcao(null)}
+                      style={styles.botaoLimpar}
+                    >
+                      <Text style={styles.textoBotaoLimpar}>Limpar</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-            )}
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
 }
 
+// --- STYLESHEET ---
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
+  container: { marginBottom: 20 },
+  rotulo: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#333",
+    color: "#374151",
     marginBottom: 8,
     fontFamily: "NunitoSans_600SemiBold",
   },
-  required: {
-    color: "#F44336",
-  },
-  selector: {
+  obrigatorio: { color: "#EF4444" },
+  seletor: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
+    backgroundColor: "#FFF",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: "#D1D5DB",
     borderRadius: 12,
-    padding: 16,
-    elevation: 1,
+    paddingHorizontal: 16,
+    height: 56,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 1,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  selectorDisabled: {
-    backgroundColor: "#f5f5f5",
-    borderColor: "#e0e0e0",
+  seletorAtivo: {
+    borderColor: COR_PRIMARIA,
+    backgroundColor: COR_PRIMARIA_FUNDO,
+    shadowColor: COR_PRIMARIA,
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 4,
   },
-  selectorSelected: {
-    borderColor: "#2196F3",
-    backgroundColor: "#f8fbff",
+  seletorDesabilitado: {
+    backgroundColor: "#F3F4F6",
+    borderColor: "#E5E7EB",
+    elevation: 0,
+    shadowOpacity: 0,
   },
-  selectorText: {
+  textoSeletor: {
     fontSize: 16,
-    color: "#333",
+    color: "#111827",
     flex: 1,
     fontFamily: "NunitoSans_400Regular",
   },
-  selectorPlaceholder: {
-    color: "#999",
-  },
-  selectorTextDisabled: {
-    color: "#ccc",
-  },
-  modalOverlay: {
+  textoSeletorPlaceholder: { color: "#9CA3AF" },
+  textoSeletorDesabilitado: { color: "#9CA3AF" },
+  overlayModal: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
-  modalContent: {
+  conteudoModal: {
     backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: Platform.OS === "ios" ? "85%" : "90%",
-    minHeight: 400,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "85%",
+    paddingBottom: Platform.OS === "ios" ? 20 : 0,
   },
-  modalHeader: {
+  puxadorModalContainer: { alignItems: "center", paddingVertical: 12 },
+  puxadorModal: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#D1D5DB",
+    borderRadius: 100,
+  },
+  cabecalhoModal: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
-  modalTitle: {
-    fontSize: 18,
+  tituloModal: {
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#333",
+    color: "#1F2937",
     fontFamily: "NunitoSans_700Bold",
   },
-  searchContainer: {
+  containerPesquisa: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9f9f9",
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
-    margin: 16,
+    marginHorizontal: 16,
     marginBottom: 8,
     paddingHorizontal: 16,
     height: 48,
   },
-  searchInput: {
+  inputPesquisa: {
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 10,
     fontSize: 16,
+    color: "#1F2937",
     fontFamily: "NunitoSans_400Regular",
   },
-  optionsList: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  optionItem: {
+  itemOpcao: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
-  optionText: {
+  textoOpcao: {
     fontSize: 16,
-    color: "#333",
+    color: "#374151",
     fontFamily: "NunitoSans_400Regular",
   },
-  emptyContainer: {
-    alignItems: "center",
-    padding: 32,
+  textoOpcaoSelecionada: {
+    fontFamily: "NunitoSans_700Bold",
+    color: COR_PRIMARIA,
   },
-  emptyText: {
+  containerVazio: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+    minHeight: 200,
+  },
+  textoVazio: {
     fontSize: 16,
-    color: "#666",
+    color: "#6B7280",
     marginTop: 16,
     textAlign: "center",
     fontFamily: "NunitoSans_400Regular",
   },
-  modalFooter: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-  },
-  clearButton: {
-    backgroundColor: "#f5f5f5",
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  clearButtonText: {
-    color: "#666",
+  rodapeModal: { padding: 16, paddingTop: 8, alignItems: "center" },
+  botaoLimpar: { paddingVertical: 8, paddingHorizontal: 16 },
+  textoBotaoLimpar: {
+    color: COR_PRIMARIA,
     fontSize: 16,
-    fontFamily: "NunitoSans_400Regular",
+    fontWeight: "600",
+    fontFamily: "NunitoSans_600SemiBold",
   },
 });

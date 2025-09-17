@@ -2,7 +2,7 @@ export type RootStackParamList = {
   Login: undefined;
   Cadastro: undefined;
   Home: undefined;
-  CadastroProduto: undefined;
+  CadastroProduto: { produto?: any } | undefined; // o produto vai ser opcional para edicao
   CadastroCategoria: undefined;
   CadastroUnidade: undefined;
   CadastroMovimentacao: undefined;
@@ -10,4 +10,6 @@ export type RootStackParamList = {
   ListaProdutos: undefined;
   MapaUnidades: undefined;
   Movimentacoes: undefined;
+  UsuariosSistema: undefined;
+  Financeiro: undefined;
 };

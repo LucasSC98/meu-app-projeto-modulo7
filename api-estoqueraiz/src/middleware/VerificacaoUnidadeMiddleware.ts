@@ -25,14 +25,17 @@ export const verificarAcessoUnidade = async (
     if (!usuario) {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
+    if (usuario.status !== "aprovado") {
+      return res.status(403).json({
+        message: "Conta aguardando aprovação do gerente",
+      });
+    }
 
     req.usuario = usuario;
 
-    // Apenas gerentes podem acessar todas as unidades
     if (usuario.cargo === "gerente") {
-      req.unidadePermitida = null; // null = pode acessar todas
+      req.unidadePermitida = null;
     } else {
-      // Estoquistas e financeiros só podem acessar sua unidade
       req.unidadePermitida = usuario.unidade_id;
     }
 
@@ -49,11 +52,9 @@ export const validarUnidadeAcesso = (
   unidadeId: number,
   req: Request
 ): boolean => {
-  // Se é gerente (pode acessar todas as unidades)
   if (req.unidadePermitida === null) {
     return true;
   }
 
-  // Se só pode acessar uma unidade específica
   return req.unidadePermitida === unidadeId;
 };

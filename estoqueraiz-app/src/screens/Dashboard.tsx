@@ -24,6 +24,7 @@ export default function PainelControle() {
   const [nomeUsuario, setNomeUsuario] = useState<string | null>(null);
   const [iniciaisUsuario, setIniciaisUsuario] = useState<string>("");
   const [cargoUsuario, setCargoUsuario] = useState<string>("Carregando...");
+  const [cargoOriginal, setCargoOriginal] = useState<string>("");
   const [unidades, setUnidades] = useState<any[]>([]);
   const [unidadeSelecionada, setUnidadeSelecionada] = useState<any>(null);
   const [modalVisivel, setModalVisivel] = useState(false);
@@ -67,6 +68,7 @@ export default function PainelControle() {
       const usuario = JSON.parse(usuarioString);
       setNomeUsuario(nome);
       setCargoUsuario(cargo ? formatarCargo(cargo) : "Usuário");
+      setCargoOriginal(cargo || "");
 
       const podeAcessarTodas = cargo === "gerente";
       setPodeAcessarTodasUnidades(podeAcessarTodas);
@@ -147,10 +149,13 @@ export default function PainelControle() {
 
       const responseEstoqueBaixo = await api.get("/produtos/estoque/baixo");
       const produtosBaixoUnidade = Array.isArray(responseEstoqueBaixo.data)
-        ? responseEstoqueBaixo.data.filter(
-            (produto: any) =>
-              produto.quantidade_estoque > 0 && produto.unidade_id === unidadeId
-          )
+        ? responseEstoqueBaixo.data
+            .filter(
+              (produto: any) =>
+                produto.quantidade_estoque > 0 &&
+                produto.unidade_id === unidadeId
+            )
+            .slice(0, 3)
         : [];
       setProdutosEstoqueBaixo(produtosBaixoUnidade);
     } catch (error) {
@@ -557,6 +562,24 @@ export default function PainelControle() {
             <MaterialIcons name="location-on" size={36} color="#8b5cf6" />
             <Text style={estilos.textoNavegacaoRapida}>Unidades</Text>
           </TouchableOpacity>
+          {(cargoOriginal === "financeiro" || cargoOriginal === "gerente") && (
+            <TouchableOpacity
+              style={estilos.itemNavegacaoRapida}
+              onPress={() => navegacao.navigate("Financeiro")}
+            >
+              <MaterialIcons name="attach-money" size={36} color="#10b981" />
+              <Text style={estilos.textoNavegacaoRapida}>Financeiro</Text>
+            </TouchableOpacity>
+          )}
+          {podeAcessarTodasUnidades && (
+            <TouchableOpacity
+              style={estilos.itemNavegacaoRapida}
+              onPress={() => navegacao.navigate("UsuariosSistema")}
+            >
+              <MaterialIcons name="groups" size={36} color="#ef4444" />
+              <Text style={estilos.textoNavegacaoRapida}>Usuarios</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </ScrollView>

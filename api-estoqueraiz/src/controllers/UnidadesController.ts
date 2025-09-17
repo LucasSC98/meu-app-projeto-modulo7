@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import UnidadeModel from "../models/UnidadesModel";
+import { validarCamposObrigatorios } from "../utils/validacoes";
 
 export async function buscarTodasUnidades(req: Request, res: Response) {
   try {
@@ -20,9 +21,7 @@ export async function buscarUnidadePorId(req: Request, res: Response) {
   const unidadeIdNum = parseInt(id);
 
   try {
-    // Gerentes podem acessar qualquer unidade
     if (req.usuario?.cargo !== "gerente") {
-      // Para não gerentes, só pode acessar detalhes da própria unidade
       if (req.unidadePermitida !== unidadeIdNum) {
         return res.status(403).json({
           message:
@@ -54,10 +53,13 @@ export async function criarUnidade(req: Request, res: Response) {
     });
   }
 
-  if (!nome || !rua || !numero || !bairro || !cidade || !estado || !cep) {
-    return res.status(400).json({
-      message: "Campos obrigatórios não preenchidos",
-    });
+  if (
+    !validarCamposObrigatorios(
+      { nome, rua, numero, bairro, cidade, estado, cep },
+      ["nome", "rua", "numero", "bairro", "cidade", "estado", "cep"]
+    )
+  ) {
+    return res.status(400).json({ message: "Campos obrigatórios faltando" });
   }
 
   try {
@@ -97,6 +99,16 @@ export async function atualizarUnidade(req: Request, res: Response) {
     if (!unidade) {
       return res.status(404).json({ message: "Unidade não encontrada" });
     }
+
+    if (
+      !validarCamposObrigatorios(
+        { nome, descricao, rua, numero, bairro, cidade, estado, cep },
+        ["nome", "rua", "numero", "bairro", "cidade", "estado", "cep"]
+      )
+    ) {
+      return res.status(400).json({ message: "Campos obrigatórios faltando" });
+    }
+
     await unidade.update({
       nome,
       descricao,

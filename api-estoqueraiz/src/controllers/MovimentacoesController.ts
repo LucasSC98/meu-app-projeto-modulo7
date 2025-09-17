@@ -6,6 +6,11 @@ import UnidadeModel from "../models/UnidadesModel";
 import UsuarioModel from "../models/UsuariosModel";
 import { Op } from "sequelize";
 import sequelize from "../config/database";
+import {
+  validarCamposObrigatorios,
+  valorMaiorQueZero,
+  validarExistenciasPorId,
+} from "../utils/validacoes";
 
 export async function criarMovimentacao(req: Request, res: Response) {
   const {
@@ -21,46 +26,107 @@ export async function criarMovimentacao(req: Request, res: Response) {
 
   const usuarioId = usuario_id || req.usuarioId;
 
-  if (!tipo || !quantidade || !produto_id || !usuarioId) {
+  // Validações iniciais
+  const camposObrigatorios = ["tipo", "quantidade", "produto_id"];
+  const camposFaltando = validarCamposObrigatorios(
+    { tipo, quantidade, produto_id, usuario_id: usuarioId },
+    camposObrigatorios
+  );
+
+  if (camposFaltando.length > 0) {
     return res.status(400).json({
-      message: "Campos obrigatórios: tipo, quantidade, produto_id, usuario_id",
+      message: `Campos obrigatórios faltando: ${camposFaltando.join(", ")}`,
+    });
+  }
+
+  if (!valorMaiorQueZero(quantidade)) {
+    return res.status(400).json({
+      message: "Quantidade deve ser maior que zero",
+    });
+  }
+
+  const unidadeOrigemId = unidade_origem_id || req.usuario?.unidade_id;
+  if (!unidadeOrigemId) {
+    return res.status(400).json({
+      message: "Unidade de origem não definida",
+    });
+  }
+
+  // Validações específicas para TRANSFERENCIA
+  if (tipo === "TRANSFERENCIA") {
+    const camposTransferencia = ["unidade_destino_id"];
+    const camposFaltandoTransferencia = validarCamposObrigatorios(
+      { unidade_destino_id },
+      camposTransferencia
+    );
+    if (camposFaltandoTransferencia.length > 0) {
+      return res.status(400).json({
+        message: `Para transferência, campos obrigatórios faltando: ${camposFaltandoTransferencia.join(
+          ", "
+        )}`,
+      });
+    }
+    if (unidadeOrigemId === unidade_destino_id) {
+      return res.status(400).json({
+        message: "Unidade de origem deve ser diferente da de destino",
+      });
+    }
+  }
+
+  if (
+    req.usuario?.cargo !== "gerente" &&
+    req.unidadePermitida !== unidadeOrigemId
+  ) {
+    return res.status(403).json({
+      message: "Acesso negado: você só pode movimentar produtos da sua unidade",
     });
   }
 
   const transaction = await sequelize.transaction();
 
   try {
-    // Buscar produto para validações
-    const produto = await ProdutoModel.findByPk(produto_id);
+    // Verificar existência de produto, usuário e unidades
+    const validacaoExistencia = await validarExistenciasPorId([
+      { model: ProdutoModel, id: produto_id, nomeCampo: "Produto" },
+      { model: UsuarioModel, id: usuarioId, nomeCampo: "Usuário" },
+      {
+        model: UnidadeModel,
+        id: unidadeOrigemId,
+        nomeCampo: "Unidade de origem",
+      },
+      ...(tipo === "TRANSFERENCIA" && unidade_destino_id
+        ? [
+            {
+              model: UnidadeModel,
+              id: unidade_destino_id,
+              nomeCampo: "Unidade de destino",
+            },
+          ]
+        : []),
+    ]);
+
+    if (!validacaoExistencia.valido) {
+      await transaction.rollback();
+      return res.status(404).json({ message: validacaoExistencia.mensagem });
+    }
+
+    const produto = await ProdutoModel.findByPk(produto_id, { transaction });
     if (!produto) {
       await transaction.rollback();
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Validações específicas por tipo de movimentação
+    // Validações de negócio
     if (tipo === "SAIDA" && produto.quantidade_estoque < quantidade) {
       await transaction.rollback();
       return res.status(400).json({
-        message: "Quantidade insuficiente em estoque",
+        message: "Quantidade insuficiente em estoque para saída",
         estoque_atual: produto.quantidade_estoque,
         quantidade_solicitada: quantidade,
       });
     }
 
     if (tipo === "TRANSFERENCIA") {
-      if (!unidade_origem_id || !unidade_destino_id) {
-        await transaction.rollback();
-        return res.status(400).json({
-          message: "Transferência requer unidade de origem e destino",
-        });
-      }
-      if (unidade_origem_id === unidade_destino_id) {
-        await transaction.rollback();
-        return res.status(400).json({
-          message: "Unidade de origem deve ser diferente da de destino",
-        });
-      }
-      // Validar se há quantidade suficiente para transferência
       if (produto.quantidade_estoque < quantidade) {
         await transaction.rollback();
         return res.status(400).json({
@@ -71,7 +137,6 @@ export async function criarMovimentacao(req: Request, res: Response) {
       }
     }
 
-    // Criar movimentação
     const movimentacao = await MovimentacaoModel.create(
       {
         tipo,
@@ -80,13 +145,12 @@ export async function criarMovimentacao(req: Request, res: Response) {
         documento,
         produto_id,
         usuario_id: usuarioId,
-        unidade_origem_id,
+        unidade_origem_id: unidadeOrigemId,
         unidade_destino_id,
       },
       { transaction }
     );
 
-    // Atualizar estoque do produto
     let novaQuantidade = produto.quantidade_estoque;
 
     switch (tipo) {
@@ -97,20 +161,11 @@ export async function criarMovimentacao(req: Request, res: Response) {
         novaQuantidade -= quantidade;
         break;
       case "AJUSTE":
-        novaQuantidade = quantidade; // Quantidade absoluta
+        novaQuantidade = quantidade;
         break;
       case "TRANSFERENCIA":
-        console.log("Processando transferência:", {
-          produto_id,
-          unidade_origem_id,
-          unidade_destino_id,
-          quantidade,
-        });
-
-        // Na transferência, reduz do estoque atual da unidade de origem
         novaQuantidade -= quantidade;
 
-        // Verificar se o produto já existe na unidade de destino
         const produtoDestino = await ProdutoModel.findOne({
           where: {
             nome: produto.nome,
@@ -120,10 +175,7 @@ export async function criarMovimentacao(req: Request, res: Response) {
           transaction,
         });
 
-        console.log("Produto destino encontrado:", !!produtoDestino);
-
         if (produtoDestino) {
-          // Se o produto já existe na unidade de destino, aumenta a quantidade
           const novaQuantidadeDestino =
             produtoDestino.quantidade_estoque + quantidade;
           console.log("Atualizando produto existente:", {
@@ -135,26 +187,16 @@ export async function criarMovimentacao(req: Request, res: Response) {
           await produtoDestino.update(
             {
               quantidade_estoque: novaQuantidadeDestino,
-              ativo: true, // Reativar produto quando recebe estoque
+              ativo: true,
             },
             { transaction }
           );
         } else {
-          // Se não existe, cria uma nova entrada do produto na unidade de destino
-          console.log("Criando novo produto na unidade destino:", {
-            nome: produto.nome,
-            unidade_destino_id,
-            usuarioId,
-            quantidade,
-          });
-
-          // Nota: Não copiamos o código de barras para evitar conflito de unicidade
-          // Cada unidade pode ter o mesmo produto, mas com códigos de barras únicos ou nulos
           await ProdutoModel.create(
             {
               nome: produto.nome,
               descricao: produto.descricao || null,
-              codigo_barras: null, // Não copiar código de barras para evitar conflito de unicidade
+              codigo_barras: null,
               preco_custo: produto.preco_custo || 0,
               preco_venda: produto.preco_venda || 0,
               quantidade_estoque: quantidade,
@@ -164,6 +206,7 @@ export async function criarMovimentacao(req: Request, res: Response) {
               localizacao: produto.localizacao || null,
               imagem_url: produto.imagem_url || null,
               ativo: true,
+              statusProduto: "pendente",
               categoria_id: produto.categoria_id,
               unidade_id: unidade_destino_id,
               usuario_id: usuarioId,
@@ -177,7 +220,7 @@ export async function criarMovimentacao(req: Request, res: Response) {
     await produto.update(
       {
         quantidade_estoque: Math.max(0, novaQuantidade),
-        ativo: Math.max(0, novaQuantidade) > 0, // Ativar/desativar baseado na quantidade
+        ativo: Math.max(0, novaQuantidade) > 0,
       },
       { transaction }
     );
@@ -216,12 +259,19 @@ export async function buscarMovimentacoes(req: Request, res: Response) {
 
     if (produto_id) whereClause.produto_id = produto_id;
     if (tipo) whereClause.tipo = tipo;
-    if (unidade_id) {
+
+    if (req.unidadePermitida !== null) {
+      whereClause[Op.or] = [
+        { unidade_origem_id: req.unidadePermitida },
+        { unidade_destino_id: req.unidadePermitida },
+      ];
+    } else if (unidade_id) {
       whereClause[Op.or] = [
         { unidade_origem_id: unidade_id },
         { unidade_destino_id: unidade_id },
       ];
     }
+
     if (data_inicio && data_fim) {
       whereClause.data_movimentacao = {
         [Op.between]: [data_inicio, data_fim],
@@ -297,9 +347,15 @@ export async function relatorioMovimentacoesPorPeriodo(
 ) {
   const { data_inicio, data_fim, unidade_id } = req.query;
 
-  if (!data_inicio || !data_fim) {
+  const camposObrigatorios = ["data_inicio", "data_fim"];
+  const camposFaltando = validarCamposObrigatorios(
+    { data_inicio, data_fim },
+    camposObrigatorios
+  );
+
+  if (camposFaltando.length > 0) {
     return res.status(400).json({
-      message: "Parâmetros obrigatórios: data_inicio, data_fim",
+      message: `Parâmetros obrigatórios faltando: ${camposFaltando.join(", ")}`,
     });
   }
 
@@ -332,7 +388,6 @@ export async function relatorioMovimentacoesPorPeriodo(
       order: [["data_movimentacao", "DESC"]],
     });
 
-    // Agrupar por tipo de movimentação
     const resumo = {
       ENTRADA: { quantidade: 0, itens: 0 },
       SAIDA: { quantidade: 0, itens: 0 },
@@ -364,7 +419,6 @@ export async function buscarUsuariosComMovimentacoes(
   res: Response
 ) {
   try {
-    // Tentar buscar usuários com movimentações
     const [results] = await sequelize.query(`
       SELECT DISTINCT u.id, u.nome, u.email, u.cargo
       FROM usuarios u
@@ -372,7 +426,6 @@ export async function buscarUsuariosComMovimentacoes(
       ORDER BY u.nome ASC
     `);
 
-    // Se não encontrou usuários com movimentações, buscar todos os usuários
     if (!results || results.length === 0) {
       const todosUsuarios = await UsuarioModel.findAll({
         attributes: ["id", "nome", "email", "cargo"],
@@ -384,7 +437,6 @@ export async function buscarUsuariosComMovimentacoes(
     return res.status(200).json(results);
   } catch (error: unknown) {
     console.error("Erro na query:", error);
-    // Em caso de erro, retornar todos os usuários como fallback
     try {
       const todosUsuarios = await UsuarioModel.findAll({
         attributes: ["id", "nome", "email", "cargo"],

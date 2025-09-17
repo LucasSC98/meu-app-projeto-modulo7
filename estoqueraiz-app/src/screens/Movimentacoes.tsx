@@ -14,6 +14,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
+import Header from "../components/Header";
 import api from "../services/api";
 import Toast from "react-native-toast-message";
 
@@ -319,35 +320,30 @@ export default function Movimentacoes() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.titulo}>
-          Movimentações ({movimentacoesFiltradas.length})
-        </Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => navigation.navigate("CadastroMovimentacao")}
-            accessibilityLabel="Adicionar nova movimentação"
-            accessibilityRole="button"
-          >
-            <MaterialIcons name="add" size={24} color="#2196F3" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => setModalFiltrosVisivel(true)}
-            accessibilityLabel="Abrir filtros"
-            accessibilityRole="button"
-          >
-            <MaterialIcons name="filter-list" size={24} color="#2196F3" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Header
+        titulo={`Movimentações (${movimentacoesFiltradas.length})`}
+        onPressVoltar={() => navigation.goBack()}
+        botaoDireita={
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => navigation.navigate("CadastroMovimentacao")}
+              accessibilityLabel="Adicionar nova movimentação"
+              accessibilityRole="button"
+            >
+              <MaterialIcons name="add" size={24} color="#2196F3" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setModalFiltrosVisivel(true)}
+              accessibilityLabel="Abrir filtros"
+              accessibilityRole="button"
+            >
+              <MaterialIcons name="filter-list" size={24} color="#2196F3" />
+            </TouchableOpacity>
+          </View>
+        }
+      />
 
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
@@ -688,38 +684,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: "#fff",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  backButton: {
-    padding: 8,
-  },
-  titulo: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-  },
   headerButtons: {
     flexDirection: "row",
     alignItems: "center",
+    width: 80, // Ajustar para caber no espaço do botaoDireita
   },
   addButton: {
-    padding: 8,
+    padding: 4,
     marginRight: 8,
   },
   filterButton: {
-    padding: 8,
+    padding: 4,
   },
   searchContainer: {
     paddingHorizontal: 20,

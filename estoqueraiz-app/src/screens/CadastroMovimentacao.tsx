@@ -1,9 +1,3 @@
-import {
-  NunitoSans_400Regular,
-  NunitoSans_600SemiBold,
-  NunitoSans_700Bold,
-  useFonts,
-} from "@expo-google-fonts/nunito-sans";
 import { useState, useEffect } from "react";
 import {
   KeyboardAvoidingView,
@@ -15,14 +9,15 @@ import {
   View,
 } from "react-native";
 import { Input } from "../components/Input";
-import { Select } from "../components/Select";
+import { Seletor } from "../components/Seletor";
+import Header from "../components/Header";
 import api from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialIcons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
+import { useAppFonts } from "../hooks/useAppFonts";
 
 type CadastroMovimentacaoScreenProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -31,12 +26,7 @@ type CadastroMovimentacaoScreenProp = NativeStackNavigationProp<
 
 export default function CadastroMovimentacao() {
   const navigation = useNavigation<CadastroMovimentacaoScreenProp>();
-
-  const [fontesLoaded] = useFonts({
-    NunitoSans_400Regular,
-    NunitoSans_600SemiBold,
-    NunitoSans_700Bold,
-  });
+  const fontesCarregadas = useAppFonts();
 
   const [tipo, setTipo] = useState<
     "ENTRADA" | "SAIDA" | "TRANSFERENCIA" | "AJUSTE"
@@ -311,7 +301,7 @@ export default function CadastroMovimentacao() {
     }
   }
 
-  if (!fontesLoaded || carregandoDados) {
+  if (!fontesCarregadas || carregandoDados) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Carregando...</Text>
@@ -324,71 +314,65 @@ export default function CadastroMovimentacao() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <Header
+        titulo="Nova Movimentação"
+        onPressVoltar={() => navigation.goBack()}
+      />
+
       <ScrollView
         style={styles.scrollContainer}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.titulo}>Nova Movimentação</Text>
-          <View style={styles.placeholder} />
-        </View>
-
         <View style={styles.formContainer}>
           <View style={styles.inputGroup}>
-            <Select
-              label="Tipo de Movimentação"
+            <Seletor
+              rotulo="Tipo de Movimentação"
               placeholder="Selecione o tipo"
-              value={tipo ? { id: tipo, nome: getTipoTexto(tipo) } : null}
-              options={[
+              valor={tipo ? { id: tipo, nome: getTipoTexto(tipo) } : null}
+              opcoes={[
                 { id: "ENTRADA", nome: "Entrada" },
                 { id: "SAIDA", nome: "Saída" },
                 { id: "TRANSFERENCIA", nome: "Transferência" },
                 { id: "AJUSTE", nome: "Ajuste" },
               ]}
-              onValueChange={(value) =>
+              aoMudarValor={(value) =>
                 setTipo(value ? (value.id as typeof tipo) : "ENTRADA")
               }
-              required
-              accessibilityLabel="Selecionar tipo de movimentação"
+              obrigatorio
+              rotuloAcessibilidade="Selecionar tipo de movimentação"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Select
-              label="Unidade de Origem"
+            <Seletor
+              rotulo="Unidade de Origem"
               placeholder="Selecione a unidade"
-              value={unidadeOrigemSelecionada}
-              options={unidades}
-              onValueChange={setUnidadeOrigemSelecionada}
-              required
-              searchable
-              accessibilityLabel="Selecionar unidade de origem"
+              valor={unidadeOrigemSelecionada}
+              opcoes={unidades}
+              aoMudarValor={setUnidadeOrigemSelecionada}
+              obrigatorio
+              pesquisavel
+              rotuloAcessibilidade="Selecionar unidade de origem"
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Select
-              label="Produto"
+            <Seletor
+              rotulo="Produto"
               placeholder={
                 unidadeOrigemSelecionada
                   ? "Selecione um produto"
                   : "Selecione primeiro a unidade de origem"
               }
-              value={produtoSelecionado}
-              options={produtosFiltrados}
-              onValueChange={setProdutoSelecionado}
-              required
-              disabled={!unidadeOrigemSelecionada}
-              searchable
-              accessibilityLabel="Selecionar produto"
-              renderOption={renderProdutoOption}
+              valor={produtoSelecionado}
+              opcoes={produtosFiltrados}
+              aoMudarValor={setProdutoSelecionado}
+              obrigatorio
+              desabilitado={!unidadeOrigemSelecionada}
+              pesquisavel
+              rotuloAcessibilidade="Selecionar produto"
+              renderizarOpcao={renderProdutoOption}
             />
           </View>
 
@@ -405,14 +389,14 @@ export default function CadastroMovimentacao() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Select
-              label="Unidade de Destino"
+            <Seletor
+              rotulo="Unidade de Destino"
               placeholder="Selecione a unidade (opcional)"
-              value={unidadeDestinoSelecionada}
-              options={unidades}
-              onValueChange={setUnidadeDestinoSelecionada}
-              searchable
-              accessibilityLabel="Selecionar unidade de destino"
+              valor={unidadeDestinoSelecionada}
+              opcoes={unidades}
+              aoMudarValor={setUnidadeDestinoSelecionada}
+              pesquisavel
+              rotuloAcessibilidade="Selecionar unidade de destino"
             />
           </View>
 
@@ -475,32 +459,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 20,
-    backgroundColor: "#fff",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  backButton: {
-    padding: 8,
-  },
-  titulo: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    fontFamily: "NunitoSans_700Bold",
-  },
-  placeholder: {
-    width: 40,
-  },
   formContainer: {
     padding: 20,
   },
@@ -514,7 +472,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontFamily: "NunitoSans_600SemiBold",
   },
-  selector: {
+  Seletoror: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -529,7 +487,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 1,
   },
-  selectorContent: {
+  SeletororContent: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
@@ -540,7 +498,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginRight: 12,
   },
-  selectorText: {
+  SeletororText: {
     fontSize: 16,
     color: "#333",
     fontFamily: "NunitoSans_400Regular",
@@ -566,7 +524,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontFamily: "NunitoSans_600SemiBold",
   },
-  selectorDesabilitado: {
+  SeletororDesabilitado: {
     backgroundColor: "#f5f5f5",
     borderWidth: 1,
     borderColor: "#e0e0e0",
