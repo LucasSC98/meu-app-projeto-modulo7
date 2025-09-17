@@ -1,10 +1,4 @@
-import {
-  NunitoSans_400Regular,
-  NunitoSans_600SemiBold,
-  NunitoSans_700Bold,
-  useFonts,
-} from "@expo-google-fonts/nunito-sans";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,21 +10,29 @@ import {
   Modal,
   Image,
   ActionSheetIOS,
+  TextInput,
 } from "react-native";
 import { Input } from "../components/Input";
+import { Seletor } from "../components/Seletor";
+import Header from "../components/Header";
 import api from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Picker } from "@react-native-picker/picker";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
+import { useRoute, RouteProp } from "@react-navigation/native";
+import { RootStackParamList } from "../types/navigation";
+import { useAppFonts } from "../hooks/useAppFonts";
+
+type CadastroProdutoRouteProp = RouteProp<
+  RootStackParamList,
+  "CadastroProduto"
+>;
 
 export default function CadastroProduto() {
-  const [fontesLoaded] = useFonts({
-    NunitoSans_400Regular,
-    NunitoSans_600SemiBold,
-    NunitoSans_700Bold,
-  });
+  const route = useRoute<CadastroProdutoRouteProp>();
+  const produtoParaEditar = route.params?.produto;
+  const fontesCarregadas = useAppFonts();
 
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -50,22 +52,188 @@ export default function CadastroProduto() {
   const [unidades, setUnidades] = useState<any[]>([]);
   const [unidadeSelecionada, setUnidadeSelecionada] = useState<any>(null);
   const [usuarioId, setUsuarioId] = useState<number | null>(null);
+  const [cargoUsuario, setCargoUsuario] = useState<string>("");
+  const [unidadeUsuario, setUnidadeUsuario] = useState<any>(null);
 
   const [carregandoDados, setCarregandoDados] = useState(true);
-  const [modalCategoriaVisivel, setModalCategoriaVisivel] = useState(false);
-  const [modalUnidadeVisivel, setModalUnidadeVisivel] = useState(false);
   const [modalImagemVisivel, setModalImagemVisivel] = useState(false);
   const [modalUrlVisivel, setModalUrlVisivel] = useState(false);
 
+  const handleQrCodePress = () => {
+    Toast.show({
+      type: "info",
+      text1: "Funcionalidade QR Code",
+      text2: "Em breve: leitura de códigos de barras via câmera",
+      position: "top",
+      visibilityTime: 3000,
+    });
+  };
+
+  const formatarData = (texto: string) => {
+    const apenasNumeros = texto.replace(/\D/g, "");
+    const limitado = apenasNumeros.slice(0, 8);
+    let formatado = limitado;
+    if (limitado.length >= 5) {
+      formatado = `${limitado.slice(0, 2)}/${limitado.slice(
+        2,
+        4
+      )}/${limitado.slice(4)}`;
+    } else if (limitado.length >= 3) {
+      formatado = `${limitado.slice(0, 2)}/${limitado.slice(2)}`;
+    }
+
+    return formatado;
+  };
+
+  const handleDataValidadeChange = (texto: string) => {
+    const formatado = formatarData(texto);
+    setDataValidade(formatado);
+  };
+
+  const converterDataParaBackend = (dataFormatada: string) => {
+    if (!dataFormatada || dataFormatada.length !== 10) return null;
+    const partes = dataFormatada.split("/");
+    if (partes.length !== 3) return null;
+
+    const dia = partes[0].padStart(2, "0");
+    const mes = partes[1].padStart(2, "0");
+    const ano = partes[2];
+
+    return `${ano}-${mes}-${dia}`;
+  };
+
+  const converterDataParaFrontend = (dataBackend: string) => {
+    if (!dataBackend || dataBackend.length !== 10) return "";
+    const partes = dataBackend.split("-");
+    if (partes.length !== 3) return "";
+
+    const ano = partes[0];
+    const mes = partes[1];
+    const dia = partes[2];
+
+    return `${dia}/${mes}/${ano}`;
+  };
+
+  async function carregarDadosIniciais(
+    cargoParam?: string,
+    unidadeIdParam?: number
+  ) {
+    try {
+      setCarregandoDados(true);
+
+      const responseCategorias = await api.get("/categorias");
+      setCategorias(responseCategorias.data);
+
+      const responseUnidades = await api.get("/unidades");
+      let unidadesFiltradas = responseUnidades.data;
+      const cargoAtual = cargoParam || cargoUsuario;
+      const unidadeIdAtual = unidadeIdParam || unidadeUsuario?.id;
+      if (cargoAtual === "estoquista" || cargoAtual === "financeiro") {
+        let unidadesPermitidas = [];
+        if (unidadeIdAtual) {
+          unidadesPermitidas.push(unidadeIdAtual);
+        }
+        if (produtoParaEditar && produtoParaEditar.unidade_id) {
+          unidadesPermitidas.push(produtoParaEditar.unidade_id);
+        }
+
+        unidadesFiltradas = responseUnidades.data.filter((unidade: any) =>
+          unidadesPermitidas.includes(unidade.id)
+        );
+        const unidadeCompleta = responseUnidades.data.find(
+          (unidade: any) => unidade.id === unidadeIdAtual
+        );
+        if (
+          unidadeCompleta &&
+          JSON.stringify(unidadeUsuario) !== JSON.stringify(unidadeCompleta)
+        ) {
+          setUnidadeUsuario(unidadeCompleta);
+        }
+      }
+
+      setUnidades(unidadesFiltradas);
+      if (unidadesFiltradas.length === 1) {
+        setUnidadeSelecionada(unidadesFiltradas[0]);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados iniciais:", error);
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Não foi possível carregar os dados iniciais",
+        position: "top",
+        visibilityTime: 4000,
+      });
+    } finally {
+      setCarregandoDados(false);
+    }
+  }
+
+  const preencherCamposParaEdicao = useCallback(() => {
+    if (!produtoParaEditar) return;
+
+    setNome(produtoParaEditar.nome || "");
+    setDescricao(produtoParaEditar.descricao || "");
+    setCodigoBarras(produtoParaEditar.codigo_barras || "");
+    setPrecoCusto(produtoParaEditar.preco_custo?.toString() || "");
+    setPrecoVenda(produtoParaEditar.preco_venda?.toString() || "");
+    setQuantidadeEstoque(
+      produtoParaEditar.quantidade_estoque?.toString() || ""
+    );
+    setQuantidadeMinima(produtoParaEditar.quantidade_minima?.toString() || "");
+    setDataValidade(
+      converterDataParaFrontend(produtoParaEditar.data_validade) || ""
+    );
+    setLote(produtoParaEditar.lote || "");
+    setLocalizacao(produtoParaEditar.localizacao || "");
+    setImagemUrl(produtoParaEditar.imagem_url || "");
+
+    if (produtoParaEditar.categoria_id && categorias.length > 0) {
+      const categoria = categorias.find(
+        (c) => c.id === produtoParaEditar.categoria_id
+      );
+      if (categoria) {
+        setCategoriaSelecionada(categoria);
+      }
+    }
+
+    if (produtoParaEditar.unidade_id && unidades.length > 0) {
+      const unidade = unidades.find(
+        (u) => u.id === produtoParaEditar.unidade_id
+      );
+      if (unidade) {
+        setUnidadeSelecionada(unidade);
+      }
+    }
+  }, [produtoParaEditar, categorias, unidades]);
+
+  const [inicializado, setInicializado] = useState(false);
+
   useEffect(() => {
-    verificarLogin();
+    if (!inicializado) {
+      setInicializado(true);
+      verificarLogin();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [inicializado]);
+
+  useEffect(() => {
+    if (produtoParaEditar) {
+      preencherCamposParaEdicao();
+    }
+  }, [
+    produtoParaEditar,
+    categorias,
+    unidades,
+    unidadeUsuario,
+    preencherCamposParaEdicao,
+  ]);
 
   async function verificarLogin() {
     try {
       const token = await AsyncStorage.getItem("token");
       const usuarioString = await AsyncStorage.getItem("usuario");
+      const cargo = await AsyncStorage.getItem("cargo");
 
       if (!token || !usuarioString) {
         Toast.show({
@@ -92,7 +260,14 @@ export default function CadastroProduto() {
       }
 
       setUsuarioId(usuario.id);
-      carregarDadosIniciais();
+      setCargoUsuario(cargo || "");
+      if (
+        (cargo === "estoquista" || cargo === "financeiro") &&
+        usuario.unidade_id
+      ) {
+        setUnidadeUsuario({ id: usuario.unidade_id });
+      }
+      carregarDadosIniciais(cargo || "", usuario.unidade_id);
     } catch (error) {
       console.error("Erro ao verificar login:", error);
       Toast.show({
@@ -105,57 +280,12 @@ export default function CadastroProduto() {
     }
   }
 
-  async function carregarDadosIniciais() {
-    try {
-      setCarregandoDados(true);
-
-      const responseCategorias = await api.get("/categorias");
-      setCategorias(responseCategorias.data);
-
-      const responseUnidades = await api.get("/unidades");
-      setUnidades(responseUnidades.data);
-    } catch (error) {
-      console.error("Erro ao carregar dados iniciais:", error);
-      Toast.show({
-        type: "error",
-        text1: "Erro",
-        text2: "Não foi possível carregar os dados iniciais",
-        position: "top",
-        visibilityTime: 4000,
-      });
-    } finally {
-      setCarregandoDados(false);
-    }
-  }
-
   async function cadastrarProduto() {
     if (!nome.trim()) {
       Toast.show({
         type: "error",
         text1: "Erro",
         text2: "Nome do produto é obrigatório!",
-        position: "top",
-        visibilityTime: 3000,
-      });
-      return;
-    }
-
-    if (!precoCusto.trim()) {
-      Toast.show({
-        type: "error",
-        text1: "Erro",
-        text2: "Preço de custo é obrigatório!",
-        position: "top",
-        visibilityTime: 3000,
-      });
-      return;
-    }
-
-    if (!precoVenda.trim()) {
-      Toast.show({
-        type: "error",
-        text1: "Erro",
-        text2: "Preço de venda é obrigatório!",
         position: "top",
         visibilityTime: 3000,
       });
@@ -184,6 +314,50 @@ export default function CadastroProduto() {
       return;
     }
 
+    if (!quantidadeMinima.trim() || parseInt(quantidadeMinima) <= 0) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Quantidade mínima deve ser maior que zero!",
+        position: "top",
+        visibilityTime: 3000,
+      });
+      return;
+    }
+
+    if (precoCusto.trim() && parseFloat(precoCusto) <= 0) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Preço de custo deve ser maior que zero!",
+        position: "top",
+        visibilityTime: 3000,
+      });
+      return;
+    }
+
+    if (precoVenda.trim() && parseFloat(precoVenda) <= 0) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Preço de venda deve ser maior que zero!",
+        position: "top",
+        visibilityTime: 3000,
+      });
+      return;
+    }
+
+    if (quantidadeEstoque.trim() && parseInt(quantidadeEstoque) < 0) {
+      Toast.show({
+        type: "error",
+        text1: "Erro",
+        text2: "Quantidade em estoque não pode ser negativa!",
+        position: "top",
+        visibilityTime: 3000,
+      });
+      return;
+    }
+
     if (!usuarioId) {
       Toast.show({
         type: "error",
@@ -196,15 +370,13 @@ export default function CadastroProduto() {
     }
 
     try {
-      const dados = {
+      const dados: any = {
         nome: nome.trim(),
         descricao: descricao.trim() || null,
         codigo_barras: codigoBarras.trim() || null,
-        preco_custo: parseFloat(precoCusto),
-        preco_venda: parseFloat(precoVenda),
         quantidade_estoque: parseInt(quantidadeEstoque) || 0,
-        quantidade_minima: parseInt(quantidadeMinima) || 1,
-        data_validade: dataValidade.trim() || null,
+        quantidade_minima: parseInt(quantidadeMinima),
+        data_validade: converterDataParaBackend(dataValidade.trim()) || null,
         lote: lote.trim() || null,
         localizacao: localizacao.trim() || null,
         imagem_url: imagemLocal || imagemUrl || null,
@@ -212,18 +384,36 @@ export default function CadastroProduto() {
         unidade_id: unidadeSelecionada.id,
         usuario_id: usuarioId,
       };
+      if (precoCusto.trim()) {
+        dados.preco_custo = parseFloat(precoCusto);
+      }
+      if (precoVenda.trim()) {
+        dados.preco_venda = parseFloat(precoVenda);
+      }
 
-      const resposta = await api.post("/produtos", dados);
+      let resposta;
+      const isEdicao = !!produtoParaEditar;
+
+      if (isEdicao) {
+        resposta = await api.patch(`/produtos/${produtoParaEditar.id}`, dados);
+      } else {
+        resposta = await api.post("/produtos", dados);
+      }
 
       if (resposta.data) {
         Toast.show({
           type: "success",
           text1: "Sucesso!",
-          text2: "Produto cadastrado com sucesso!",
+          text2: isEdicao
+            ? "Produto atualizado com sucesso!"
+            : "Produto cadastrado com sucesso!",
           position: "top",
           visibilityTime: 3000,
         });
-        limparCampos();
+
+        if (!isEdicao) {
+          limparCampos();
+        }
       }
     } catch (error: any) {
       const mensagem =
@@ -231,7 +421,7 @@ export default function CadastroProduto() {
       Toast.show({
         type: "error",
         text1: "Erro",
-        text2: `Falha ao cadastrar produto: ${mensagem}`,
+        text2: `${mensagem}`,
         position: "top",
         visibilityTime: 4000,
       });
@@ -254,16 +444,6 @@ export default function CadastroProduto() {
     setCategoriaSelecionada(null);
     setUnidadeSelecionada(null);
   }
-
-  const selecionarCategoria = (categoria: any) => {
-    setCategoriaSelecionada(categoria);
-    setModalCategoriaVisivel(false);
-  };
-
-  const selecionarUnidade = (unidade: any) => {
-    setUnidadeSelecionada(unidade);
-    setModalUnidadeVisivel(false);
-  };
 
   const mostrarOpcoesFoto = () => {
     if (Platform.OS === "ios") {
@@ -377,24 +557,24 @@ export default function CadastroProduto() {
     setImagemLocal(null);
   };
 
-  if (!fontesLoaded) return null;
+  if (!fontesCarregadas) return null;
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <Header
+        titulo={produtoParaEditar ? "Editar Produto" : "Cadastro de Produto"}
+        subtitulo="Preencha os dados do produto"
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Text style={styles.titulo}>Cadastro de Produto</Text>
-          <Text style={styles.subtitulo}>Preencha os dados do produto</Text>
-        </View>
-
         <View style={styles.form}>
           {carregandoDados ? (
             <View style={styles.loadingContainer}>
@@ -402,118 +582,48 @@ export default function CadastroProduto() {
             </View>
           ) : (
             <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Categoria *</Text>
-                {Platform.OS === "ios" ? (
-                  <TouchableOpacity
-                    style={styles.selectorButton}
-                    onPress={() => setModalCategoriaVisivel(true)}
-                  >
-                    <Text
-                      style={[
-                        styles.selectorText,
-                        !categoriaSelecionada && styles.placeholderText,
-                      ]}
-                    >
-                      {categoriaSelecionada
-                        ? categoriaSelecionada.nome
-                        : "Selecione uma categoria"}
-                    </Text>
-                    <MaterialIcons
-                      name="arrow-drop-down"
-                      size={24}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={categoriaSelecionada?.id || null}
-                      onValueChange={(itemValue) => {
-                        if (itemValue) {
-                          const categoria = categorias.find(
-                            (c) => c.id === itemValue
-                          );
-                          setCategoriaSelecionada(categoria);
-                        }
-                      }}
-                      style={styles.picker}
-                    >
-                      <Picker.Item
-                        label="Selecione uma categoria"
-                        value={null}
-                      />
-                      {categorias.map((categoria) => (
-                        <Picker.Item
-                          key={categoria.id}
-                          label={categoria.nome}
-                          value={categoria.id}
-                        />
-                      ))}
-                    </Picker>
-                  </View>
-                )}
-              </View>
+              <Seletor
+                rotulo="Categoria"
+                placeholder="Selecione uma categoria"
+                valor={categoriaSelecionada}
+                opcoes={categorias}
+                aoMudarValor={setCategoriaSelecionada}
+                obrigatorio={true}
+                pesquisavel={true}
+              />
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Unidade *</Text>
-                {Platform.OS === "ios" ? (
-                  <TouchableOpacity
-                    style={styles.selectorButton}
-                    onPress={() => setModalUnidadeVisivel(true)}
-                  >
-                    <Text
-                      style={[
-                        styles.selectorText,
-                        !unidadeSelecionada && styles.placeholderText,
-                      ]}
-                    >
-                      {unidadeSelecionada
-                        ? unidadeSelecionada.nome
-                        : "Selecione uma unidade"}
-                    </Text>
-                    <MaterialIcons
-                      name="arrow-drop-down"
-                      size={24}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.pickerContainer}>
-                    <Picker
-                      selectedValue={unidadeSelecionada?.id || null}
-                      onValueChange={(itemValue) => {
-                        if (itemValue) {
-                          const unidade = unidades.find(
-                            (u) => u.id === itemValue
-                          );
-                          setUnidadeSelecionada(unidade);
-                        }
-                      }}
-                      style={styles.picker}
-                    >
-                      <Picker.Item label="Selecione uma unidade" value={null} />
-                      {unidades.map((unidade) => (
-                        <Picker.Item
-                          key={unidade.id}
-                          label={unidade.nome}
-                          value={unidade.id}
-                        />
-                      ))}
-                    </Picker>
-                  </View>
-                )}
-              </View>
+              <Seletor
+                rotulo="Unidade"
+                placeholder="Selecione uma unidade"
+                valor={unidadeSelecionada}
+                opcoes={unidades}
+                aoMudarValor={setUnidadeSelecionada}
+                obrigatorio={true}
+                pesquisavel={true}
+              />
             </>
           )}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Código de Barras</Text>
-            <Input
-              placeholder="Código de barras (opcional)"
-              value={codigoBarras}
-              onChangeText={setCodigoBarras}
-              style={styles.input}
-            />
+            <View style={styles.containerEntrada}>
+              <TextInput
+                placeholder="Código de barras (opcional)"
+                value={codigoBarras}
+                onChangeText={setCodigoBarras}
+                style={styles.inputComIcone}
+                placeholderTextColor="#9CA3AF"
+              />
+              <TouchableOpacity
+                style={styles.botaoQr}
+                onPress={handleQrCodePress}
+              >
+                <MaterialIcons
+                  name="qr-code-scanner"
+                  size={24}
+                  color="#2196F3"
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -534,28 +644,6 @@ export default function CadastroProduto() {
               onChangeText={setDescricao}
               style={[styles.input, { height: 100, textAlignVertical: "top" }]}
               multiline
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Preço de Custo *</Text>
-            <Input
-              placeholder="Ex: 35.90"
-              value={precoCusto}
-              onChangeText={setPrecoCusto}
-              style={styles.input}
-              keyboardType="numeric"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Preço de Venda *</Text>
-            <Input
-              placeholder="Ex: 49.90"
-              value={precoVenda}
-              onChangeText={setPrecoVenda}
-              style={styles.input}
-              keyboardType="numeric"
             />
           </View>
 
@@ -584,10 +672,12 @@ export default function CadastroProduto() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Data de Validade</Text>
             <Input
-              placeholder="AAAA-MM-DD (opcional)"
+              placeholder="DD/MM/YYYY (opcional)"
               value={dataValidade}
-              onChangeText={setDataValidade}
+              onChangeText={handleDataValidadeChange}
               style={styles.input}
+              keyboardType="numeric"
+              maxLength={10}
             />
           </View>
 
@@ -615,13 +705,13 @@ export default function CadastroProduto() {
             <Text style={styles.label}>Imagem do Produto</Text>
 
             {imagemLocal || imagemUrl ? (
-              <View style={styles.imagemContainer}>
+              <View style={styles.containerImagem}>
                 <Image
                   source={{ uri: imagemLocal || imagemUrl }}
-                  style={styles.imagemPreview}
+                  style={styles.visualizacaoImagem}
                   resizeMode="cover"
                 />
-                <View style={styles.imagemAcoes}>
+                <View style={styles.acoesImagem}>
                   <TouchableOpacity
                     style={styles.botaoImagemSecundario}
                     onPress={mostrarOpcoesFoto}
@@ -656,7 +746,9 @@ export default function CadastroProduto() {
             style={styles.botaoCadastrar}
             onPress={cadastrarProduto}
           >
-            <Text style={styles.botaoTexto}>Cadastrar</Text>
+            <Text style={styles.botaoTexto}>
+              {produtoParaEditar ? "Atualizar" : "Cadastrar"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.botaoLimpar} onPress={limparCampos}>
@@ -668,100 +760,12 @@ export default function CadastroProduto() {
       <Modal
         animationType="slide"
         transparent={true}
-        visible={modalCategoriaVisivel}
-        onRequestClose={() => setModalCategoriaVisivel(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Categoria</Text>
-              <TouchableOpacity onPress={() => setModalCategoriaVisivel(false)}>
-                <MaterialIcons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {categorias.map((categoria) => (
-                <TouchableOpacity
-                  key={categoria.id}
-                  style={[
-                    styles.modalOption,
-                    categoria.id === categoriaSelecionada?.id &&
-                      styles.modalOptionSelected,
-                  ]}
-                  onPress={() => selecionarCategoria(categoria)}
-                >
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      categoria.id === categoriaSelecionada?.id &&
-                        styles.modalOptionTextSelected,
-                    ]}
-                  >
-                    {categoria.nome}
-                  </Text>
-                  {categoria.id === categoriaSelecionada?.id && (
-                    <MaterialIcons name="check" size={20} color="#2196F3" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalUnidadeVisivel}
-        onRequestClose={() => setModalUnidadeVisivel(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Unidade</Text>
-              <TouchableOpacity onPress={() => setModalUnidadeVisivel(false)}>
-                <MaterialIcons name="close" size={24} color="#333" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {unidades.map((unidade) => (
-                <TouchableOpacity
-                  key={unidade.id}
-                  style={[
-                    styles.modalOption,
-                    unidade.id === unidadeSelecionada?.id &&
-                      styles.modalOptionSelected,
-                  ]}
-                  onPress={() => selecionarUnidade(unidade)}
-                >
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      unidade.id === unidadeSelecionada?.id &&
-                        styles.modalOptionTextSelected,
-                    ]}
-                  >
-                    {unidade.nome}
-                  </Text>
-                  {unidade.id === unidadeSelecionada?.id && (
-                    <MaterialIcons name="check" size={20} color="#2196F3" />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        animationType="slide"
-        transparent={true}
         visible={modalImagemVisivel}
         onRequestClose={() => setModalImagemVisivel(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+        <View style={styles.containerModal}>
+          <View style={styles.conteudoModal}>
+            <View style={styles.cabecalhoModal}>
               <Text style={styles.tituloModal}>Selecionar Imagem</Text>
               <TouchableOpacity onPress={() => setModalImagemVisivel(false)}>
                 <MaterialIcons name="close" size={24} color="#333" />
@@ -821,22 +825,22 @@ export default function CadastroProduto() {
         visible={modalUrlVisivel}
         onRequestClose={() => setModalUrlVisivel(false)}
       >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
+        <View style={styles.containerModal}>
+          <View style={styles.conteudoModal}>
+            <View style={styles.cabecalhoModal}>
               <Text style={styles.tituloModal}>URL da Imagem</Text>
               <TouchableOpacity onPress={() => setModalUrlVisivel(false)}>
                 <MaterialIcons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.labelModal}>Cole o link da imagem:</Text>
+            <View style={styles.corpoModal}>
+              <Text style={styles.rotuloModal}>Cole o link da imagem:</Text>
               <Input
                 placeholder="https://exemplo.com/imagem.jpg"
                 value={imagemUrl}
                 onChangeText={setImagemUrl}
-                style={styles.inputModal}
+                style={styles.entradaModal}
                 autoCapitalize="none"
                 keyboardType="url"
               />
@@ -868,25 +872,25 @@ export default function CadastroProduto() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
-  scrollView: { flex: 1 },
-  scrollContainer: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 40 },
-  header: { paddingTop: 50, paddingBottom: 30, alignItems: "center" },
-  titulo: {
-    fontSize: 26,
-    fontWeight: "700",
-    fontFamily: "NunitoSans_700Bold",
-    color: "#111827",
-    marginBottom: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
   },
-  subtitulo: {
-    fontSize: 16,
-    fontFamily: "NunitoSans_400Regular",
-    color: "#6B7280",
-    textAlign: "center",
+  scrollView: {
+    flex: 1,
   },
-  form: { flex: 1 },
-  inputGroup: { marginBottom: 20 },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  form: {
+    flex: 1,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
   label: {
     fontSize: 14,
     fontWeight: "600",
@@ -906,24 +910,40 @@ const styles = StyleSheet.create({
     color: "#111827",
     justifyContent: "center",
   },
-  optionButton: {
-    flex: 1,
+  containerEntrada: {
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    backgroundColor: "#F9FAFB",
+  },
+  inputComIcone: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: "NunitoSans_400Regular",
+    color: "#111827",
+  },
+  botaoQr: {
+    padding: 4,
+  },
+  botaoOpcao: {
+    flex: 1,
     paddingVertical: 14,
     alignItems: "center",
   },
-  optionSelected: {
+  opcaoSelecionada: {
     backgroundColor: "#111827",
     borderColor: "#111827",
   },
-  optionText: {
+  textoOpcao: {
     color: "#111827",
     fontFamily: "NunitoSans_600SemiBold",
     fontSize: 14,
   },
-  optionTextSelected: {
+  textoOpcaoSelecionada: {
     color: "#FFFFFF",
   },
   botaoCadastrar: {
@@ -943,116 +963,33 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   botaoTexto: {
-    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    color: "#FFFFFF",
     fontFamily: "NunitoSans_600SemiBold",
   },
-  pickerContainer: {
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    height: 52,
-    justifyContent: "center",
-  },
-  picker: {
-    height: 52,
-    color: "#111827",
-  },
   loadingContainer: {
-    padding: 40,
-    alignItems: "center",
+    flex: 1,
     justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
     fontSize: 16,
     color: "#6B7280",
+    marginTop: 16,
     fontFamily: "NunitoSans_400Regular",
   },
-  selectorButton: {
-    height: 52,
-    backgroundColor: "#F9FAFB",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  selectorText: {
-    fontSize: 16,
-    fontFamily: "NunitoSans_400Regular",
-    color: "#111827",
-    flex: 1,
-  },
-  placeholderText: {
-    color: "#9CA3AF",
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "50%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    fontFamily: "NunitoSans_600SemiBold",
-  },
-  tituloModal: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    fontFamily: "NunitoSans_600SemiBold",
-  },
-  modalOption: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  modalOptionSelected: {
-    backgroundColor: "#f0f8ff",
-  },
-  modalOptionText: {
-    fontSize: 16,
-    color: "#333",
-    fontFamily: "NunitoSans_400Regular",
-  },
-  modalOptionTextSelected: {
-    color: "#2196F3",
-    fontWeight: "500",
-  },
-  imagemContainer: {
+  containerImagem: {
     alignItems: "center",
     marginTop: 8,
   },
-  imagemPreview: {
+  visualizacaoImagem: {
     width: 120,
     height: 120,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: "#E5E7EB",
   },
-  imagemAcoes: {
+  acoesImagem: {
     flexDirection: "row",
     marginTop: 12,
     gap: 12,
@@ -1094,9 +1031,7 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderRadius: 12,
     paddingVertical: 32,
-    paddingHorizontal: 16,
     alignItems: "center",
-    marginTop: 8,
   },
   textoBotaoImagem: {
     fontSize: 16,
@@ -1136,17 +1071,45 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: "NunitoSans_400Regular",
   },
-  modalBody: {
+  containerModal: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  conteudoModal: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "50%",
+  },
+  cabecalhoModal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  tituloModal: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#333",
+    fontFamily: "NunitoSans_600SemiBold",
+  },
+  botaoFechar: {
+    padding: 4,
+  },
+  corpoModal: {
     padding: 20,
   },
-  labelModal: {
+  rotuloModal: {
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
     marginBottom: 12,
     fontFamily: "NunitoSans_600SemiBold",
   },
-  inputModal: {
+  entradaModal: {
     height: 52,
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
