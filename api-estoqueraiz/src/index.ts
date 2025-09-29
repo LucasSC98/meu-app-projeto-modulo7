@@ -7,6 +7,7 @@ import rotaCategoria from "./routes/rotaCategoria";
 import rotaUnidade from "./routes/rotaUnidade";
 import rotaProdutos from "./routes/rotaProdutos";
 import rotaMovimentacoes from "./routes/rotaMovimentacoes";
+import rotaRecuperacao from "./routes/rotaRecuperacao";
 import "./models/UnidadesModel";
 import "./models/ProdutosModel";
 import "./models/MovimentacoesModel";
@@ -59,6 +60,7 @@ app.use("/unidades", verificarToken, rotaUnidade);
 app.use("/produtos", verificarToken, rotaProdutos);
 app.use("/movimentacoes", verificarToken, rotaMovimentacoes);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+app.use("/api", rotaRecuperacao);
 
 app.get("/", (req, res) => {
   res.json({

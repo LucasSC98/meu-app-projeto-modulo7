@@ -10,6 +10,12 @@ export const gerarToken = (usuario: UsuariosModelo): string => {
   });
 };
 
+export const gerarTokenRecuperacao = (usuario: UsuariosModelo): string => {
+  return jwt.sign({ id: usuario.id, email: usuario.email }, JWT_SECRET, {
+    expiresIn: "15m",
+  });
+};
+
 export const verificarToken = (token: string) => {
   return jwt.verify(token, JWT_SECRET);
 };
