@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Modal,
   TextInput,
   RefreshControl,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -16,7 +18,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 import Header from "../components/Header";
 import { ModalConfirmacao } from "../components/ModalConfirmacao";
-import api from "../services/api";
+import api, { getProdutosPaginados } from "../services/api";
 import Toast from "react-native-toast-message";
 
 type ListaProdutosScreenProp = NativeStackNavigationProp<
@@ -27,10 +29,20 @@ type ListaProdutosScreenProp = NativeStackNavigationProp<
 export default function ListaProdutos() {
   const navigation = useNavigation<ListaProdutosScreenProp>();
 
+  const voltarParaDashboard = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
   const [produtos, setProdutos] = useState<any[]>([]);
-  const [produtosFiltrados, setProdutosFiltrados] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [pesquisando, setPesquisando] = useState(false);
+
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [totalItens, setTotalItens] = useState(0);
+  const [temMaisPaginas, setTemMaisPaginas] = useState(false);
+  const ITENS_POR_PAGINA = 15;
 
   const [categorias, setCategorias] = useState<any[]>([]);
   const [unidades, setUnidades] = useState<any[]>([]);
@@ -47,65 +59,140 @@ export default function ListaProdutos() {
   const [produtoParaExcluir, setProdutoParaExcluir] = useState<any>(null);
   const [carregandoExclusao, setCarregandoExclusao] = useState(false);
 
-  useEffect(() => {
-    carregarDados();
-  }, []);
+  const carregarProdutos = useCallback(
+    async (
+      pagina: number = 1,
+      substituir: boolean = false,
+      ehPesquisa: boolean = false
+    ) => {
+      try {
+        if (ehPesquisa) {
+        } else if (pagina === 1) {
+          setCarregando(true);
+        } else {
+          setCarregandoMais(true);
+        }
 
-  useEffect(() => {
-    aplicarFiltros();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    produtos,
-    categoriaSelecionada,
-    unidadeSelecionada,
-    termoPesquisa,
-    filtroEstoque,
-  ]);
+        const parametros = {
+          page: pagina,
+          limit: ITENS_POR_PAGINA,
+          search: termoPesquisa.trim() || undefined,
+          categoria_id: categoriaSelecionada?.id || undefined,
+          unidade_id: unidadeSelecionada?.id || undefined,
+          filtro_estoque: filtroEstoque,
+        };
 
-  async function carregarDados() {
+        const response = await getProdutosPaginados(parametros);
+
+        if (response.produtos) {
+          const produtosRaw = response.produtos;
+          const produtosValidos = Array.isArray(produtosRaw)
+            ? produtosRaw.filter((p) => p && p.id != null)
+            : [];
+
+          const removerDuplicatas = (lista: any[], novosProdutos: any[]) => {
+            const idsExistentes = new Set(lista.map((p) => p.id));
+            const produtosFiltrados = novosProdutos.filter(
+              (p) => !idsExistentes.has(p.id)
+            );
+
+            return [...lista, ...produtosFiltrados];
+          };
+
+          if (substituir || pagina === 1) {
+            setProdutos(produtosValidos);
+          } else {
+            setProdutos((prev) => removerDuplicatas(prev, produtosValidos));
+          }
+        }
+
+        if (response.pagination) {
+          setPaginaAtual(response.pagination.currentPage);
+          setTotalItens(response.pagination.totalItems);
+          setTemMaisPaginas(response.pagination.hasNextPage);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar produtos:", error);
+        Toast.show({
+          type: "error",
+          text1: "Erro",
+          text2: "Não foi possível carregar os produtos",
+          position: "top",
+          visibilityTime: 3000,
+        });
+      } finally {
+        if (!ehPesquisa) {
+          setCarregando(false);
+        }
+        setCarregandoMais(false);
+      }
+    },
+    [
+      termoPesquisa,
+      categoriaSelecionada?.id,
+      unidadeSelecionada?.id,
+      filtroEstoque,
+    ]
+  );
+
+  const carregarDadosIniciais = useCallback(async () => {
     try {
       setCarregando(true);
 
-      const [responseProdutos, responseCategorias, responseUnidades] =
-        await Promise.all([
-          api.get("/produtos"),
-          api.get("/categorias"),
-          api.get("/unidades"),
-        ]);
+      const [responseCategorias, responseUnidades] = await Promise.all([
+        api.get("/categorias"),
+        api.get("/unidades"),
+      ]);
 
-      const produtosAtivos = Array.isArray(responseProdutos.data)
-        ? responseProdutos.data.filter(
-            (produto: any) => produto.ativo !== false
-          )
-        : [];
-
-      setProdutos(produtosAtivos);
       setCategorias(responseCategorias.data);
       setUnidades(responseUnidades.data);
 
-      setProdutosFiltrados(produtosAtivos);
+      await carregarProdutos(1, true);
     } catch (error) {
-      console.error("Erro ao carregar dados:", error);
+      console.error("Erro ao carregar dados iniciais:", error);
       Toast.show({
         type: "error",
         text1: "Erro",
-        text2: "Não foi possível carregar os produtos",
+        text2: "Não foi possível carregar os dados",
         position: "top",
         visibilityTime: 3000,
       });
     } finally {
       setCarregando(false);
     }
-  }
+  }, [carregarProdutos]);
+
+  useEffect(() => {
+    carregarDadosIniciais();
+  }, [carregarDadosIniciais]);
+
+  useEffect(() => {
+    setPaginaAtual(1);
+    setProdutos([]);
+    carregarProdutos(1, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaSelecionada, unidadeSelecionada, filtroEstoque]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      if (!pesquisando) {
+        setPesquisando(true);
+      }
+      setPaginaAtual(1);
+      setProdutos([]);
+      await carregarProdutos(1, true, true);
+      setPesquisando(false);
+    }, 800);
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termoPesquisa]);
 
   async function atualizarLista() {
     try {
       setAtualizando(true);
-      const response = await api.get("/produtos");
-      const produtosAtivos = Array.isArray(response.data)
-        ? response.data.filter((produto: any) => produto.ativo !== false)
-        : [];
-      setProdutos(produtosAtivos);
+      setPaginaAtual(1);
+      await carregarProdutos(1, true);
     } catch (error) {
       console.error("Erro ao atualizar lista:", error);
     } finally {
@@ -113,45 +200,112 @@ export default function ListaProdutos() {
     }
   }
 
-  function aplicarFiltros() {
-    let produtosFiltrados = [...produtos];
-
-    if (categoriaSelecionada) {
-      produtosFiltrados = produtosFiltrados.filter(
-        (produto) =>
-          produto.categoria && produto.categoria.id === categoriaSelecionada.id
-      );
+  function carregarMaisProdutos() {
+    if (temMaisPaginas && !carregandoMais && !carregando) {
+      carregarProdutos(paginaAtual + 1, false);
     }
-    if (unidadeSelecionada) {
-      produtosFiltrados = produtosFiltrados.filter(
-        (produto) =>
-          produto.unidade && produto.unidade.id === unidadeSelecionada.id
-      );
-    }
-    if (termoPesquisa.trim()) {
-      const termo = termoPesquisa.toLowerCase();
-      produtosFiltrados = produtosFiltrados.filter(
-        (produto) =>
-          produto.nome.toLowerCase().includes(termo) ||
-          (produto.codigo_barras &&
-            produto.codigo_barras.toLowerCase().includes(termo)) ||
-          (produto.categoria &&
-            produto.categoria.nome.toLowerCase().includes(termo))
-      );
-    }
-
-    if (filtroEstoque === "baixo") {
-      produtosFiltrados = produtosFiltrados.filter(
-        (produto) => produto.quantidade_estoque <= produto.quantidade_minima
-      );
-    } else if (filtroEstoque === "zerado") {
-      produtosFiltrados = produtosFiltrados.filter(
-        (produto) => produto.quantidade_estoque === 0
-      );
-    }
-
-    setProdutosFiltrados(produtosFiltrados);
   }
+
+  const renderizarProduto = ({ item: produto }: { item: any }) => {
+    const statusEstoque = getStatusEstoque(produto);
+    return (
+      <View style={estilos.cartaoProduto}>
+        <View style={estilos.cabecalhoProduto}>
+          <Text style={estilos.nomeProduto}>{produto.nome}</Text>
+          <View
+            style={[
+              estilos.badgeEstoque,
+              { backgroundColor: statusEstoque.cor },
+            ]}
+          >
+            <Text style={estilos.textoEstoque}>{statusEstoque.texto}</Text>
+          </View>
+        </View>
+
+        <Text style={estilos.descricaoProduto}>{produto.descricao}</Text>
+
+        <View style={estilos.detalhes}>
+          <View style={estilos.detalheItem}>
+            <MaterialIcons name="attach-money" size={16} color="#666" />
+            <Text style={estilos.textoDetalhe}>
+              Venda: {formatarPreco(parseFloat(produto.preco_venda))}
+            </Text>
+          </View>
+
+          <View style={estilos.detalheItem}>
+            <MaterialIcons name="inventory-2" size={16} color="#666" />
+            <Text style={estilos.textoDetalhe}>
+              Estoque: {produto.quantidade_estoque}
+            </Text>
+          </View>
+
+          {produto.categoria && (
+            <View style={estilos.detalheItem}>
+              <MaterialIcons name="category" size={16} color="#666" />
+              <Text style={estilos.textoDetalhe}>{produto.categoria.nome}</Text>
+            </View>
+          )}
+
+          {produto.unidade && (
+            <View style={estilos.detalheItem}>
+              <MaterialIcons name="location-on" size={16} color="#666" />
+              <Text style={estilos.textoDetalhe}>{produto.unidade.nome}</Text>
+            </View>
+          )}
+
+          {produto.codigo_barras && (
+            <View style={estilos.detalheItem}>
+              <MaterialIcons name="qr-code" size={16} color="#666" />
+              <Text style={estilos.textoDetalhe}>{produto.codigo_barras}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={estilos.acoesProduto}>
+          <TouchableOpacity
+            style={estilos.botaoEditar}
+            onPress={() => editarProduto(produto)}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="edit" size={18} color="#2196F3" />
+            <Text style={estilos.textoBotaoEditar}>Editar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={estilos.botaoDeletar}
+            onPress={() => confirmarExclusao(produto)}
+            activeOpacity={0.7}
+          >
+            <MaterialIcons name="delete" size={18} color="#F44336" />
+            <Text style={estilos.textoBotaoDeletar}>Excluir</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  const renderizarComponenteVazio = () => (
+    <View style={estilos.containerVazio}>
+      <MaterialIcons name="inventory" size={64} color="#ccc" />
+      <Text style={estilos.textoVazio}>Nenhum produto encontrado</Text>
+      <Text style={estilos.subtextoVazio}>
+        Tente ajustar os filtros ou adicionar novos produtos
+      </Text>
+    </View>
+  );
+
+  const renderizarFooterCarregamento = () => {
+    if (!carregandoMais) return null;
+
+    return (
+      <View style={estilos.footerCarregamento}>
+        <ActivityIndicator size="small" color="#2196F3" />
+        <Text style={estilos.textoCarregandoMais}>
+          Carregando mais produtos...
+        </Text>
+      </View>
+    );
+  };
 
   function limparFiltros() {
     setCategoriaSelecionada(null);
@@ -161,13 +315,11 @@ export default function ListaProdutos() {
   }
 
   const selecionarCategoria = (categoria: any) => {
-    console.log("Selecionando categoria:", categoria?.nome || "Todas");
     setCategoriaSelecionada(categoria);
     setModalCategoriaVisivel(false);
   };
 
   const selecionarUnidade = (unidade: any) => {
-    console.log("Selecionando unidade:", unidade?.nome || "Todas");
     setUnidadeSelecionada(unidade);
     setModalUnidadeVisivel(false);
   };
@@ -228,8 +380,6 @@ export default function ListaProdutos() {
         position: "top",
         visibilityTime: 3000,
       });
-
-      // Atualiza a lista removendo o produto deletado
       setProdutos(produtos.filter((p) => p.id !== produtoParaExcluir.id));
       setProdutoParaExcluir(null);
       setModalExclusaoVisivel(false);
@@ -253,7 +403,7 @@ export default function ListaProdutos() {
     setCarregandoExclusao(false);
   }
 
-  if (carregando) {
+  if (carregando && produtos.length === 0) {
     return (
       <View style={estilos.containerCarregando}>
         <Text style={estilos.textoCarregando}>Carregando produtos...</Text>
@@ -265,7 +415,8 @@ export default function ListaProdutos() {
     <View style={estilos.container}>
       <Header
         titulo="Lista de Produtos"
-        subtitulo={`${produtosFiltrados.length} produto(s) encontrado(s)`}
+        subtitulo={`${totalItens} produto(s) encontrado(s)`}
+        onPressVoltar={voltarParaDashboard}
         botaoDireita={
           <TouchableOpacity
             style={estilos.botaoFiltros}
@@ -281,10 +432,12 @@ export default function ListaProdutos() {
         <TextInput
           style={estilos.inputPesquisa}
           placeholder="Pesquisar produtos..."
+          placeholderTextColor="#999"
           value={termoPesquisa}
           onChangeText={setTermoPesquisa}
         />
-        {termoPesquisa.length > 0 && (
+        {pesquisando && <ActivityIndicator size="small" color="#059669" />}
+        {termoPesquisa.length > 0 && !pesquisando && (
           <TouchableOpacity onPress={() => setTermoPesquisa("")}>
             <MaterialIcons name="clear" size={20} color="#666" />
           </TouchableOpacity>
@@ -358,114 +511,23 @@ export default function ListaProdutos() {
         </View>
       )}
 
-      <ScrollView
+      <FlatList
         style={estilos.lista}
+        data={produtos}
+        renderItem={renderizarProduto}
+        keyExtractor={(item, index) =>
+          item?.id ? `produto-${item.id}` : `item-${index}`
+        }
         refreshControl={
           <RefreshControl refreshing={atualizando} onRefresh={atualizarLista} />
         }
-      >
-        {produtosFiltrados.length === 0 ? (
-          <View style={estilos.containerVazio}>
-            <MaterialIcons name="inventory" size={64} color="#ccc" />
-            <Text style={estilos.textoVazio}>Nenhum produto encontrado</Text>
-            <Text style={estilos.subtextoVazio}>
-              Tente ajustar os filtros ou adicionar novos produtos
-            </Text>
-          </View>
-        ) : (
-          produtosFiltrados.map((produto) => {
-            const statusEstoque = getStatusEstoque(produto);
-            return (
-              <View key={produto.id} style={estilos.cartaoProduto}>
-                <View style={estilos.cabecalhoProduto}>
-                  <Text style={estilos.nomeProduto}>{produto.nome}</Text>
-                  <View
-                    style={[
-                      estilos.badgeEstoque,
-                      { backgroundColor: statusEstoque.cor },
-                    ]}
-                  >
-                    <Text style={estilos.textoEstoque}>
-                      {statusEstoque.texto}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={estilos.descricaoProduto}>
-                  {produto.descricao}
-                </Text>
-
-                <View style={estilos.detalhes}>
-                  <View style={estilos.detalheItem}>
-                    <MaterialIcons name="attach-money" size={16} color="#666" />
-                    <Text style={estilos.textoDetalhe}>
-                      Venda: {formatarPreco(parseFloat(produto.preco_venda))}
-                    </Text>
-                  </View>
-
-                  <View style={estilos.detalheItem}>
-                    <MaterialIcons name="inventory-2" size={16} color="#666" />
-                    <Text style={estilos.textoDetalhe}>
-                      Estoque: {produto.quantidade_estoque}
-                    </Text>
-                  </View>
-
-                  {produto.categoria && (
-                    <View style={estilos.detalheItem}>
-                      <MaterialIcons name="category" size={16} color="#666" />
-                      <Text style={estilos.textoDetalhe}>
-                        {produto.categoria.nome}
-                      </Text>
-                    </View>
-                  )}
-
-                  {produto.unidade && (
-                    <View style={estilos.detalheItem}>
-                      <MaterialIcons
-                        name="location-on"
-                        size={16}
-                        color="#666"
-                      />
-                      <Text style={estilos.textoDetalhe}>
-                        {produto.unidade.nome}
-                      </Text>
-                    </View>
-                  )}
-
-                  {produto.codigo_barras && (
-                    <View style={estilos.detalheItem}>
-                      <MaterialIcons name="qr-code" size={16} color="#666" />
-                      <Text style={estilos.textoDetalhe}>
-                        {produto.codigo_barras}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={estilos.acoesProduto}>
-                  <TouchableOpacity
-                    style={estilos.botaoEditar}
-                    onPress={() => editarProduto(produto)}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialIcons name="edit" size={18} color="#2196F3" />
-                    <Text style={estilos.textoBotaoEditar}>Editar</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={estilos.botaoDeletar}
-                    onPress={() => confirmarExclusao(produto)}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialIcons name="delete" size={18} color="#F44336" />
-                    <Text style={estilos.textoBotaoDeletar}>Excluir</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
+        onEndReached={carregarMaisProdutos}
+        onEndReachedThreshold={0.1}
+        ListEmptyComponent={!carregando ? renderizarComponenteVazio : null}
+        ListFooterComponent={renderizarFooterCarregamento}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={produtos.length === 0 ? { flex: 1 } : undefined}
+      />
 
       <Modal
         animationType="slide"
@@ -501,7 +563,6 @@ export default function ListaProdutos() {
                 <TouchableOpacity
                   style={estilos.containerSeletor}
                   onPress={() => {
-                    console.log("Abrindo modal de categoria");
                     abrirModalCategoria();
                   }}
                   activeOpacity={0.7}
@@ -526,7 +587,6 @@ export default function ListaProdutos() {
                 <TouchableOpacity
                   style={estilos.containerSeletor}
                   onPress={() => {
-                    console.log("Abrindo modal de unidade");
                     abrirModalUnidade();
                   }}
                   activeOpacity={0.7}
@@ -750,8 +810,6 @@ export default function ListaProdutos() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-
-      {/* Modal de Confirmação de Exclusão */}
       <ModalConfirmacao
         visivel={modalExclusaoVisivel}
         titulo="Confirmar Exclusão"
@@ -1218,5 +1276,18 @@ const estilos = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
+  },
+  footerCarregamento: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  textoCarregandoMais: {
+    fontSize: 14,
+    color: "#666",
+    fontStyle: "italic",
   },
 });

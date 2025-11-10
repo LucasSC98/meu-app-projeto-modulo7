@@ -37,7 +37,12 @@ export default function Header({
   return (
     <View style={styles.header}>
       {mostrarBotaoVoltar ? (
-        <TouchableOpacity style={styles.botaoVoltar} onPress={handleVoltar}>
+        <TouchableOpacity
+          style={styles.botaoVoltar}
+          onPress={handleVoltar}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <MaterialIcons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
       ) : (
@@ -74,6 +79,9 @@ const styles = StyleSheet.create({
   },
   botaoVoltar: {
     marginRight: 16,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: "transparent",
   },
   headerTextos: {
     flex: 1,

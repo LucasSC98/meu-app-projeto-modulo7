@@ -12,4 +12,5 @@ export type RootStackParamList = {
   Movimentacoes: undefined;
   UsuariosSistema: undefined;
   Financeiro: undefined;
+  RelatorioCurvaABC: undefined;
 };
