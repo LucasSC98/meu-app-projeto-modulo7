@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,14 @@ import {
   TextInput,
   RefreshControl,
   FlatList,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 import Header from "../components/Header";
-import api from "../services/api";
+import api, { getMovimentacoesPaginadas } from "../services/api";
 import Toast from "react-native-toast-message";
 
 type MovimentacoesScreenProp = NativeStackNavigationProp<
@@ -52,63 +53,117 @@ interface Movimentacao {
 export default function Movimentacoes() {
   const navigation = useNavigation<MovimentacoesScreenProp>();
 
+  // Estados principais
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
-  const [movimentacoesFiltradas, setMovimentacoesFiltradas] = useState<
-    Movimentacao[]
-  >([]);
   const [carregando, setCarregando] = useState(true);
   const [atualizando, setAtualizando] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
 
+  // Estados de paginação
+  const [paginaAtual, setPaginaAtual] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [totalItens, setTotalItens] = useState(0);
+  const ITENS_POR_PAGINA = 20;
+
+  // Estados para dados de apoio
   const [produtos, setProdutos] = useState<any[]>([]);
-  const [, setUsuarios] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
   const [unidades, setUnidades] = useState<any[]>([]);
 
+  // Estados para filtros
   const [produtoSelecionado, setProdutoSelecionado] = useState<any>(null);
   const [usuarioSelecionado, setUsuarioSelecionado] = useState<any>(null);
   const [unidadeSelecionada, setUnidadeSelecionada] = useState<any>(null);
   const [tipoSelecionado, setTipoSelecionado] = useState<string>("");
   const [termoPesquisa, setTermoPesquisa] = useState("");
+  const [termoPesquisaDebounced, setTermoPesquisaDebounced] = useState("");
 
+  // Estados para modais
   const [modalProdutoVisivel, setModalProdutoVisivel] = useState(false);
   const [modalUsuarioVisivel, setModalUsuarioVisivel] = useState(false);
   const [modalUnidadeVisivel, setModalUnidadeVisivel] = useState(false);
   const [modalTipoVisivel, setModalTipoVisivel] = useState(false);
   const [modalFiltrosVisivel, setModalFiltrosVisivel] = useState(false);
 
+  // Debounce da pesquisa
   useEffect(() => {
-    carregarDados();
-  }, []);
+    const timeoutId = setTimeout(() => {
+      setTermoPesquisaDebounced(termoPesquisa);
+    }, 500);
 
-  useEffect(() => {
-    aplicarFiltros();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    movimentacoes,
-    produtoSelecionado,
-    usuarioSelecionado,
-    unidadeSelecionada,
-    tipoSelecionado,
-    termoPesquisa,
-  ]);
+    return () => clearTimeout(timeoutId);
+  }, [termoPesquisa]);
 
-  async function carregarDados() {
+  // Função para carregar movimentações paginadas
+  const carregarMovimentacoesPaginadas = useCallback(
+    async (resetar: boolean = false, pagina: number = 1) => {
+      try {
+        if (resetar) {
+          setMovimentacoes([]);
+          setPaginaAtual(1);
+        } else {
+          setCarregandoMais(true);
+        }
+
+        const params = {
+          page: resetar ? 1 : pagina,
+          limit: ITENS_POR_PAGINA,
+          search: termoPesquisaDebounced.trim() || undefined,
+          produto_id: produtoSelecionado?.id || undefined,
+          tipo: tipoSelecionado || undefined,
+          unidade_id: unidadeSelecionada?.id || undefined,
+        };
+
+        const response = await getMovimentacoesPaginadas(params);
+
+        if (response.movimentacoes) {
+          const novasMovimentacoes = Array.isArray(response.movimentacoes)
+            ? response.movimentacoes
+            : [];
+
+          if (resetar) {
+            setMovimentacoes(novasMovimentacoes);
+          } else {
+            setMovimentacoes((prev) => [...prev, ...novasMovimentacoes]);
+          }
+
+          if (response.pagination) {
+            setTotalPaginas(response.pagination.total_pages);
+            setTotalItens(response.pagination.total_items);
+            setPaginaAtual(response.pagination.current_page);
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao carregar movimentações:", error);
+        Toast.show({
+          type: "error",
+          text1: "Erro",
+          text2: "Erro ao carregar movimentações",
+          position: "top",
+        });
+      } finally {
+        setCarregandoMais(false);
+      }
+    },
+    [
+      termoPesquisaDebounced,
+      produtoSelecionado,
+      tipoSelecionado,
+      unidadeSelecionada,
+      ITENS_POR_PAGINA,
+    ]
+  );
+
+  // Função para carregar dados iniciais
+  const carregarDadosIniciais = useCallback(async () => {
     try {
       setCarregando(true);
-
-      const [
-        responseMovimentacoes,
-        responseProdutos,
-        responseUsuarios,
-        responseUnidades,
-      ] = await Promise.all([
-        api.get("/movimentacoes"),
-        api.get("/produtos"),
-        api.get("/usuarios"),
-        api.get("/unidades"),
-      ]);
-
-      const dadosMovimentacoes =
-        responseMovimentacoes.data?.movimentacoes || [];
+      const [responseProdutos, responseUsuarios, responseUnidades] =
+        await Promise.all([
+          api.get("/produtos"),
+          api.get("/usuarios"),
+          api.get("/unidades"),
+        ]);
 
       const produtosAtivos = Array.isArray(responseProdutos.data)
         ? responseProdutos.data.filter(
@@ -116,9 +171,6 @@ export default function Movimentacoes() {
           )
         : [];
 
-      setMovimentacoes(
-        Array.isArray(dadosMovimentacoes) ? dadosMovimentacoes : []
-      );
       setProdutos(produtosAtivos);
       setUsuarios(
         Array.isArray(responseUsuarios.data) ? responseUsuarios.data : []
@@ -127,9 +179,7 @@ export default function Movimentacoes() {
         Array.isArray(responseUnidades.data) ? responseUnidades.data : []
       );
 
-      setMovimentacoesFiltradas(
-        Array.isArray(dadosMovimentacoes) ? dadosMovimentacoes : []
-      );
+      await carregarMovimentacoesPaginadas(true);
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
       console.error(
@@ -147,69 +197,50 @@ export default function Movimentacoes() {
     } finally {
       setCarregando(false);
     }
-  }
+  }, [carregarMovimentacoesPaginadas]);
 
-  async function atualizarLista() {
+  // Função para atualizar lista
+  const atualizarLista = useCallback(async () => {
     try {
       setAtualizando(true);
-      const response = await api.get("/movimentacoes");
-      const dados = response.data?.movimentacoes || [];
-      setMovimentacoes(Array.isArray(dados) ? dados : []);
+      await carregarMovimentacoesPaginadas(true);
     } catch (error) {
       console.error("Erro ao atualizar lista:", error);
     } finally {
       setAtualizando(false);
     }
-  }
+  }, [carregarMovimentacoesPaginadas]);
 
-  function aplicarFiltros() {
-    let filtradas = Array.isArray(movimentacoes) ? [...movimentacoes] : [];
-
-    if (produtoSelecionado && produtoSelecionado.id) {
-      filtradas = filtradas.filter(
-        (m) => m && m.produto && m.produto.id === produtoSelecionado.id
-      );
+  // Função para carregar mais movimentações
+  const carregarMaisMovimentacoes = useCallback(() => {
+    if (!carregandoMais && paginaAtual < totalPaginas) {
+      carregarMovimentacoesPaginadas(false, paginaAtual + 1);
     }
+  }, [
+    carregandoMais,
+    paginaAtual,
+    totalPaginas,
+    carregarMovimentacoesPaginadas,
+  ]);
 
-    if (usuarioSelecionado && usuarioSelecionado.id) {
-      filtradas = filtradas.filter(
-        (m) => m && m.usuario && m.usuario.id === usuarioSelecionado.id
-      );
+  // Effect para carregar dados iniciais na montagem
+  useEffect(() => {
+    carregarDadosIniciais();
+  }, [carregarDadosIniciais]);
+
+  // Effect para recarregar quando filtros mudarem
+  useEffect(() => {
+    if (!carregando) {
+      carregarMovimentacoesPaginadas(true);
     }
-
-    if (unidadeSelecionada && unidadeSelecionada.id) {
-      filtradas = filtradas.filter(
-        (m) =>
-          m &&
-          ((m.unidade_origem &&
-            m.unidade_origem.id === unidadeSelecionada.id) ||
-            (m.unidade_destino &&
-              m.unidade_destino.id === unidadeSelecionada.id))
-      );
-    }
-
-    if (tipoSelecionado) {
-      filtradas = filtradas.filter((m) => m && m.tipo === tipoSelecionado);
-    }
-
-    if (termoPesquisa.trim()) {
-      const termo = termoPesquisa.toLowerCase();
-      filtradas = filtradas.filter(
-        (m) =>
-          m &&
-          ((m.produto &&
-            m.produto.nome &&
-            m.produto.nome.toLowerCase().includes(termo)) ||
-            (m.usuario &&
-              m.usuario.nome &&
-              m.usuario.nome.toLowerCase().includes(termo)) ||
-            (m.observacao && m.observacao.toLowerCase().includes(termo)) ||
-            (m.documento && m.documento.toLowerCase().includes(termo)))
-      );
-    }
-
-    setMovimentacoesFiltradas(filtradas);
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    termoPesquisaDebounced,
+    produtoSelecionado,
+    usuarioSelecionado,
+    unidadeSelecionada,
+    tipoSelecionado,
+  ]);
 
   function limparFiltros() {
     setProdutoSelecionado(null);
@@ -217,6 +248,7 @@ export default function Movimentacoes() {
     setUnidadeSelecionada(null);
     setTipoSelecionado("");
     setTermoPesquisa("");
+    setTermoPesquisaDebounced("");
     setModalFiltrosVisivel(false);
   }
 
@@ -321,7 +353,7 @@ export default function Movimentacoes() {
   return (
     <View style={styles.container}>
       <Header
-        titulo={`Movimentações (${movimentacoesFiltradas.length})`}
+        titulo={`Movimentações (${totalItens})`}
         onPressVoltar={() => navigation.goBack()}
         botaoDireita={
           <View style={styles.headerButtons}>
@@ -363,9 +395,7 @@ export default function Movimentacoes() {
       </View>
 
       <FlatList
-        data={
-          Array.isArray(movimentacoesFiltradas) ? movimentacoesFiltradas : []
-        }
+        data={Array.isArray(movimentacoes) ? movimentacoes : []}
         keyExtractor={(item) =>
           item?.id?.toString() || Math.random().toString()
         }
@@ -377,13 +407,25 @@ export default function Movimentacoes() {
             colors={["#2196F3"]}
           />
         }
+        onEndReached={carregarMaisMovimentacoes}
+        onEndReachedThreshold={0.1}
+        ListFooterComponent={
+          carregandoMais ? (
+            <View style={styles.loadingFooter}>
+              <ActivityIndicator size="small" color="#2196F3" />
+              <Text style={styles.loadingFooterText}>Carregando mais...</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <MaterialIcons name="inventory" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>
-              Nenhuma movimentação encontrada
-            </Text>
-          </View>
+          !carregando ? (
+            <View style={styles.emptyContainer}>
+              <MaterialIcons name="inventory" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>
+                Nenhuma movimentação encontrada
+              </Text>
+            </View>
+          ) : null
         }
         contentContainerStyle={styles.listContainer}
       />
@@ -483,18 +525,13 @@ export default function Movimentacoes() {
                 >
                   <Text style={styles.clearButtonText}>Limpar Filtros</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.applyButton}
-                  onPress={() => setModalFiltrosVisivel(false)}
-                >
-                  <Text style={styles.applyButtonText}>Aplicar</Text>
-                </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
+      {/* Modal Tipo */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -509,26 +546,17 @@ export default function Movimentacoes() {
                 <MaterialIcons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setTipoSelecionado("");
-                  setModalTipoVisivel(false);
-                }}
-              >
-                <Text style={styles.modalOptionText}>Todos</Text>
-              </TouchableOpacity>
+            <ScrollView style={styles.modalBody}>
               {["ENTRADA", "SAIDA", "TRANSFERENCIA", "AJUSTE"].map((tipo) => (
                 <TouchableOpacity
                   key={tipo}
-                  style={styles.modalOption}
+                  style={styles.selectOption}
                   onPress={() => {
                     setTipoSelecionado(tipo);
                     setModalTipoVisivel(false);
                   }}
                 >
-                  <Text style={styles.modalOptionText}>{tipo}</Text>
+                  <Text style={styles.selectOptionText}>{tipo}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -536,6 +564,7 @@ export default function Movimentacoes() {
         </View>
       </Modal>
 
+      {/* Modal Produto */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -550,36 +579,25 @@ export default function Movimentacoes() {
                 <MaterialIcons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setProdutoSelecionado(null);
-                  setModalProdutoVisivel(false);
-                }}
-              >
-                <Text style={styles.modalOptionText}>Todos</Text>
-              </TouchableOpacity>
-              {Array.isArray(produtos) &&
-                produtos.map((produto) => (
-                  <TouchableOpacity
-                    key={produto?.id || Math.random()}
-                    style={styles.modalOption}
-                    onPress={() => {
-                      setProdutoSelecionado(produto);
-                      setModalProdutoVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalOptionText}>
-                      {produto?.nome || "Produto sem nome"}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <ScrollView style={styles.modalBody}>
+              {produtos.map((produto) => (
+                <TouchableOpacity
+                  key={produto.id}
+                  style={styles.selectOption}
+                  onPress={() => {
+                    setProdutoSelecionado(produto);
+                    setModalProdutoVisivel(false);
+                  }}
+                >
+                  <Text style={styles.selectOptionText}>{produto.nome}</Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
         </View>
       </Modal>
 
+      {/* Modal Usuário */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -594,39 +612,19 @@ export default function Movimentacoes() {
                 <MaterialIcons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setUsuarioSelecionado(null);
-                  setModalUsuarioVisivel(false);
-                }}
-              >
-                <Text style={styles.modalOptionText}>Todos</Text>
-              </TouchableOpacity>
-              {(() => {
-                const usuariosUnicos = Array.from(
-                  new Map(
-                    movimentacoes
-                      .filter((m) => m.usuario)
-                      .map((m) => [m.usuario.id, m.usuario])
-                  ).values()
-                );
-                return usuariosUnicos.map((usuario) => (
-                  <TouchableOpacity
-                    key={usuario.id}
-                    style={styles.modalOption}
-                    onPress={() => {
-                      setUsuarioSelecionado(usuario);
-                      setModalUsuarioVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalOptionText}>
-                      {usuario.nome || "Usuário sem nome"}
-                    </Text>
-                  </TouchableOpacity>
-                ));
-              })()}
+            <ScrollView style={styles.modalBody}>
+              {usuarios.map((usuario) => (
+                <TouchableOpacity
+                  key={usuario.id}
+                  style={styles.selectOption}
+                  onPress={() => {
+                    setUsuarioSelecionado(usuario);
+                    setModalUsuarioVisivel(false);
+                  }}
+                >
+                  <Text style={styles.selectOptionText}>{usuario.nome}</Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
         </View>
@@ -646,31 +644,19 @@ export default function Movimentacoes() {
                 <MaterialIcons name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={() => {
-                  setUnidadeSelecionada(null);
-                  setModalUnidadeVisivel(false);
-                }}
-              >
-                <Text style={styles.modalOptionText}>Todas</Text>
-              </TouchableOpacity>
-              {Array.isArray(unidades) &&
-                unidades.map((unidade) => (
-                  <TouchableOpacity
-                    key={unidade?.id || Math.random()}
-                    style={styles.modalOption}
-                    onPress={() => {
-                      setUnidadeSelecionada(unidade);
-                      setModalUnidadeVisivel(false);
-                    }}
-                  >
-                    <Text style={styles.modalOptionText}>
-                      {unidade?.nome || "Unidade sem nome"}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <ScrollView style={styles.modalBody}>
+              {unidades.map((unidade) => (
+                <TouchableOpacity
+                  key={unidade.id}
+                  style={styles.selectOption}
+                  onPress={() => {
+                    setUnidadeSelecionada(unidade);
+                    setModalUnidadeVisivel(false);
+                  }}
+                >
+                  <Text style={styles.selectOptionText}>{unidade.nome}</Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
         </View>
@@ -687,7 +673,7 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: "row",
     alignItems: "center",
-    width: 80, // Ajustar para caber no espaço do botaoDireita
+    width: 80,
   },
   addButton: {
     padding: 4,
@@ -806,7 +792,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "70%",
+    maxHeight: "80%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -814,70 +800,70 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: "#f0f0f0",
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "600",
     color: "#333",
   },
   modalBody: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   filterOption: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
   filterLabel: {
-    flex: 1,
     fontSize: 16,
     color: "#333",
+    fontWeight: "500",
   },
   filterValue: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#666",
+    flex: 1,
+    textAlign: "right",
     marginRight: 8,
   },
   filterActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 20,
+    paddingTop: 20,
   },
   clearButton: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: "#f44336",
+    padding: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginRight: 8,
   },
   clearButtonText: {
-    color: "#666",
-    fontSize: 16,
-  },
-  applyButton: {
-    flex: 1,
-    backgroundColor: "#2196F3",
-    padding: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginLeft: 8,
-  },
-  applyButtonText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
-  modalOption: {
-    padding: 16,
+  selectOption: {
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
   },
-  modalOptionText: {
+  selectOptionText: {
     fontSize: 16,
     color: "#333",
+  },
+  loadingFooter: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  loadingFooterText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#666",
   },
 });

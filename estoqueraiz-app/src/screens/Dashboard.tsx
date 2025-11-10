@@ -16,6 +16,7 @@ import api from "../services/api";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
+import CurvaABCCard from "../components/CurvaABCCard";
 
 export default function PainelControle() {
   const navegacao =
@@ -36,6 +37,27 @@ export default function PainelControle() {
   const [produtosEstoqueBaixo, setProdutosEstoqueBaixo] = useState<any[]>([]);
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [unidadeUsuario, setUnidadeUsuario] = useState<any>(null);
+  const [movimentacoesRecentes, setMovimentacoesRecentes] = useState<any[]>([]);
+
+  const [dadosCurvaABC, setDadosCurvaABC] = useState<{
+    totalProdutos: number;
+    valorTotal: number;
+    classeA: {
+      quantidade: number;
+      valor: number;
+      percentual: number;
+    };
+    classeB: {
+      quantidade: number;
+      valor: number;
+      percentual: number;
+    };
+    classeC: {
+      quantidade: number;
+      valor: number;
+      percentual: number;
+    };
+  } | null>(null);
 
   const obterIniciais = (nomeCompleto: string): string => {
     const nomes = nomeCompleto.trim().split(" ");
@@ -124,6 +146,7 @@ export default function PainelControle() {
       setCarregandoDados(false);
     }
   }
+
   async function carregarDadosUnidade(unidadeId: number) {
     try {
       setCarregandoDados(true);
@@ -144,7 +167,6 @@ export default function PainelControle() {
         const dataValidade = new Date(produto.data_validade);
         return dataValidade <= em30Dias && dataValidade >= hoje;
       }).length;
-
       setProdutosVencendo(produtosVencendoCount);
 
       const responseEstoqueBaixo = await api.get("/produtos/estoque/baixo");
@@ -158,10 +180,100 @@ export default function PainelControle() {
             .slice(0, 3)
         : [];
       setProdutosEstoqueBaixo(produtosBaixoUnidade);
+      const responseMovimentacoes = await api.get(
+        `/movimentacoes?unidade_id=${unidadeId}&limit=3`
+      );
+      const movimentacoes = responseMovimentacoes.data?.movimentacoes || [];
+      setMovimentacoesRecentes(
+        Array.isArray(movimentacoes) ? movimentacoes : []
+      );
+      await carregarDadosCurvaABCResumo(unidadeId);
     } catch (error) {
       console.error("Erro ao carregar dados da unidade:", error);
     } finally {
       setCarregandoDados(false);
+    }
+  }
+
+  async function carregarDadosCurvaABCResumo(unidadeId?: number) {
+    try {
+      const response = await api.get(
+        `/relatorios/curva-abc${unidadeId ? `?unidade_id=${unidadeId}` : ""}`
+      );
+
+      if (response.data && response.data.produtos && response.data.resumo) {
+        const resumo = response.data.resumo;
+        const produtos = response.data.produtos;
+        const valorTotal = produtos.reduce(
+          (total: number, produto: any) => total + produto.valor_total,
+          0
+        );
+
+        const dadosResumo = {
+          totalProdutos: produtos.length,
+          valorTotal,
+          classeA: {
+            quantidade:
+              resumo.find((r: any) => r.classe === "A")?.quantidade_produtos ||
+              0,
+            valor: resumo.find((r: any) => r.classe === "A")?.valor_total || 0,
+            percentual:
+              resumo.find((r: any) => r.classe === "A")?.percentual_valor || 0,
+          },
+          classeB: {
+            quantidade:
+              resumo.find((r: any) => r.classe === "B")?.quantidade_produtos ||
+              0,
+            valor: resumo.find((r: any) => r.classe === "B")?.valor_total || 0,
+            percentual:
+              resumo.find((r: any) => r.classe === "B")?.percentual_valor || 0,
+          },
+          classeC: {
+            quantidade:
+              resumo.find((r: any) => r.classe === "C")?.quantidade_produtos ||
+              0,
+            valor: resumo.find((r: any) => r.classe === "C")?.valor_total || 0,
+            percentual:
+              resumo.find((r: any) => r.classe === "C")?.percentual_valor || 0,
+          },
+        };
+
+        setDadosCurvaABC(dadosResumo);
+      } else {
+        setDadosCurvaABC(null);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar resumo Curva ABC:", error);
+      setDadosCurvaABC(null);
+    }
+  }
+
+  function formatarDataMovimentacao(data: string): string {
+    try {
+      const date = new Date(data);
+      return date.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "Data inválida";
+    }
+  }
+
+  function getCorTipoMovimentacao(tipo: string): string {
+    switch (tipo) {
+      case "ENTRADA":
+        return "#059669";
+      case "SAIDA":
+        return "#dc2626";
+      case "TRANSFERENCIA":
+        return "#2563eb";
+      case "AJUSTE":
+        return "#d97706";
+      default:
+        return "#64748b";
     }
   }
 
@@ -302,6 +414,7 @@ export default function PainelControle() {
           </View>
         )}
 
+        {/* Modal de seleção de unidades */}
         {podeAcessarTodasUnidades && (
           <Modal
             animationType="slide"
@@ -466,20 +579,10 @@ export default function PainelControle() {
         </View>
       </View>
 
-      <View style={estilos.cartaoABC}>
-        <View style={estilos.cabecalhoSecao}>
-          <MaterialIcons name="analytics" size={20} color="#059669" />
-          <Text style={estilos.tituloSecao}>Curva ABC</Text>
-        </View>
-        <View style={estilos.conteudoSemDados}>
-          <MaterialIcons name="bar-chart" size={32} color="#94a3b8" />
-          <Text style={estilos.textoSemDados}>Nenhum dado disponível</Text>
-          <Text style={estilos.subtextoSemDados}>
-            Análise será exibida quando houver vendas registradas
-          </Text>
-        </View>
-      </View>
+      {/* Card da Curva ABC - COMPONENTE SEPARADO */}
+      <CurvaABCCard dados={dadosCurvaABC} carregando={carregandoDados} />
 
+      {/* Produtos com Estoque Baixo */}
       <View style={estilos.secao}>
         <View style={estilos.cabecalhoSecao}>
           <MaterialIcons name="trending-down" size={20} color="#dc2626" />
@@ -513,6 +616,71 @@ export default function PainelControle() {
         )}
       </View>
 
+      {/* Movimentações Recentes */}
+      <View style={estilos.secao}>
+        <View style={estilos.cabecalhoSecao}>
+          <MaterialIcons name="history" size={20} color="#2563eb" />
+          <Text style={estilos.tituloSecao}>Movimentações Recentes</Text>
+          <TouchableOpacity
+            onPress={() => navegacao.navigate("Movimentacoes")}
+            style={estilos.botaoVerTodas}
+          >
+            <Text style={estilos.textoVerTodas}>Ver todas</Text>
+            <MaterialIcons name="chevron-right" size={16} color="#2563eb" />
+          </TouchableOpacity>
+        </View>
+
+        {carregandoDados ? (
+          <View style={estilos.cartaoMovimentacao}>
+            <Text style={estilos.textoCarregando}>Carregando...</Text>
+          </View>
+        ) : movimentacoesRecentes.length > 0 ? (
+          movimentacoesRecentes.map((movimentacao) => (
+            <View key={movimentacao.id} style={estilos.cartaoMovimentacao}>
+              <View style={estilos.cabecalhoMovimentacao}>
+                <View style={estilos.tipoMovimentacao}>
+                  <View
+                    style={[
+                      estilos.indicadorTipo,
+                      {
+                        backgroundColor: getCorTipoMovimentacao(
+                          movimentacao.tipo
+                        ),
+                      },
+                    ]}
+                  />
+                  <Text style={estilos.tipoTexto}>{movimentacao.tipo}</Text>
+                </View>
+                <Text style={estilos.dataMovimentacao}>
+                  {formatarDataMovimentacao(movimentacao.data_movimentacao)}
+                </Text>
+              </View>
+
+              <Text style={estilos.produtoMovimentacao}>
+                {movimentacao.produto?.nome || "Produto não informado"}
+              </Text>
+
+              <View style={estilos.detalhesMovimentacao}>
+                <Text style={estilos.quantidadeMovimentacao}>
+                  Qtd: {movimentacao.quantidade}
+                </Text>
+                <Text style={estilos.usuarioMovimentacao}>
+                  Por: {movimentacao.usuario?.nome || "Usuário não informado"}
+                </Text>
+              </View>
+            </View>
+          ))
+        ) : (
+          <View style={estilos.conteudoSemDados}>
+            <MaterialIcons name="history" size={32} color="#94a3b8" />
+            <Text style={estilos.textoSemDados}>
+              Nenhuma movimentação recente
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Botões de ação */}
       <View style={estilos.botoesAcao}>
         <TouchableOpacity
           style={[estilos.botaoAcao, estilos.botaoPrimario]}
@@ -521,14 +689,15 @@ export default function PainelControle() {
           <MaterialIcons name="add" size={20} color="#fff" />
           <Text style={estilos.textoBotao}>Movimentações</Text>
         </TouchableOpacity>
+        {/* 
         <TouchableOpacity style={[estilos.botaoAcao, estilos.botaoSecundario]}>
           <MaterialIcons name="file-download" size={20} color="#059669" />
           <Text style={[estilos.textoBotao, { color: "#059669" }]}>
-            Exportar Dados
+            Exportar Dados // Funcionalidade futura
           </Text>
         </TouchableOpacity>
+        */}
       </View>
-
       <View style={estilos.navegacaoRapida}>
         <Text style={estilos.tituloSecao}>Acesso Rápido</Text>
         <View style={estilos.gradeNavegacaoRapida}>
@@ -893,22 +1062,6 @@ const estilos = StyleSheet.create({
     lineHeight: 14,
   },
 
-  cartaoABC: {
-    backgroundColor: "#ffffff",
-    marginHorizontal: 24,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 20,
-    elevation: 6,
-    alignItems: "center",
-    shadowColor: "#64748b",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    borderWidth: 1,
-    borderColor: "#f1f5f9",
-  },
-
   secao: {
     backgroundColor: "#ffffff",
     marginHorizontal: 24,
@@ -937,6 +1090,23 @@ const estilos = StyleSheet.create({
     color: "#1e293b",
     marginLeft: 12,
     letterSpacing: 0.3,
+    flex: 1,
+  },
+
+  botaoVerTodas: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: "#f1f5f9",
+  },
+
+  textoVerTodas: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#2563eb",
   },
 
   cartaoProduto: {
@@ -962,6 +1132,90 @@ const estilos = StyleSheet.create({
     color: "#64748b",
     marginBottom: 3,
     lineHeight: 18,
+  },
+
+  // Estilos para movimentações recentes
+  cartaoMovimentacao: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+
+  cabecalhoMovimentacao: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+
+  tipoMovimentacao: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  indicadorTipo: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+
+  tipoTexto: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+
+  dataMovimentacao: {
+    fontSize: 11,
+    color: "#94a3b8",
+  },
+
+  produtoMovimentacao: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1e293b",
+    marginBottom: 4,
+  },
+
+  detalhesMovimentacao: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  quantidadeMovimentacao: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+
+  usuarioMovimentacao: {
+    fontSize: 12,
+    color: "#64748b",
+  },
+
+  textoCarregando: {
+    fontSize: 14,
+    color: "#64748b",
+    textAlign: "center",
+  },
+
+  conteudoSemDados: {
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+
+  textoSemDados: {
+    fontSize: 14,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginTop: 8,
+    fontWeight: "500",
   },
 
   botoesAcao: {
@@ -1039,14 +1293,6 @@ const estilos = StyleSheet.create({
     marginTop: 12,
     fontWeight: "600",
     lineHeight: 18,
-  },
-
-  textoSemDados: {
-    fontSize: 16,
-    color: "#94a3b8",
-    textAlign: "center",
-    marginTop: 24,
-    fontStyle: "italic",
   },
 
   secaoHeader: {
@@ -1129,19 +1375,6 @@ const estilos = StyleSheet.create({
     lineHeight: 12,
   },
 
-  conteudoSemDados: {
-    alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 20,
-  },
-
-  subtextoSemDados: {
-    fontSize: 13,
-    color: "#94a3b8",
-    textAlign: "center",
-    marginTop: 4,
-  },
-
   containerSeletorFixo: {
     backgroundColor: "#f8fafc",
     borderRadius: 16,
@@ -1149,5 +1382,43 @@ const estilos = StyleSheet.create({
     borderColor: "#e2e8f0",
     marginBottom: 24,
     overflow: "hidden",
+  },
+
+  // Novos estilos para o gráfico da Curva ABC
+  headerGrafico: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 12,
+  },
+
+  tituloGrafico: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1e293b",
+  },
+
+  totalProdutos: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  numeroTotal: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#059669",
+  },
+
+  labelTotal: {
+    fontSize: 12,
+    color: "#64748b",
+    lineHeight: 14,
+  },
+
+  containerBarras: {
+    width: "100%",
+    alignItems: "center",
   },
 });

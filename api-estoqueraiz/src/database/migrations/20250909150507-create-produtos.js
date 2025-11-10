@@ -1,14 +1,14 @@
-"use strict";
+'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("produtos", {
+    await queryInterface.createTable('produtos', {
       id: {
-        type: Sequelize.INTEGER,
+        allowNull: false,
         autoIncrement: true,
         primaryKey: true,
-        allowNull: false,
+        type: Sequelize.INTEGER
       },
       nome: {
         type: Sequelize.STRING,
@@ -54,6 +54,12 @@ module.exports = {
       localizacao: {
         type: Sequelize.STRING,
         allowNull: true,
+        comment: "Localização física no estoque (ex: A1-B2-C3)",
+      },
+      imagem_url: {
+        type: Sequelize.TEXT,
+        allowNull: true,
+        comment: "URL da imagem do produto",
       },
       ativo: {
         type: Sequelize.BOOLEAN,
@@ -64,52 +70,44 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "categorias",
-          key: "id",
+          model: 'categorias',
+          key: 'id',
         },
-        onUpdate: "CASCADE",
-        onDelete: "RESTRICT",
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
       },
       unidade_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "unidades",
-          key: "id",
+          model: 'unidades',
+          key: 'id',
         },
-        onUpdate: "CASCADE",
-        onDelete: "RESTRICT",
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
       },
       usuario_id: {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: "usuarios",
-          key: "id",
+          model: 'usuarios',
+          key: 'id',
         },
-        onUpdate: "CASCADE",
-        onDelete: "RESTRICT",
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT',
       },
       criado_em: {
-        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        type: Sequelize.DATE
       },
       atualizado_em: {
-        type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
+        type: Sequelize.DATE
+      }
     });
-
-    await queryInterface.addIndex("produtos", ["categoria_id"]);
-    await queryInterface.addIndex("produtos", ["unidade_id"]);
-    await queryInterface.addIndex("produtos", ["usuario_id"]);
-    await queryInterface.addIndex("produtos", ["codigo_barras"]);
-    await queryInterface.addIndex("produtos", ["ativo"]);
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("produtos");
-  },
+    await queryInterface.dropTable('produtos');
+  }
 };

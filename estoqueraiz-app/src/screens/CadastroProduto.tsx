@@ -20,7 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import Toast from "react-native-toast-message";
-import { useRoute, RouteProp } from "@react-navigation/native";
+import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { RootStackParamList } from "../types/navigation";
 import { useAppFonts } from "../hooks/useAppFonts";
 
@@ -31,8 +31,13 @@ type CadastroProdutoRouteProp = RouteProp<
 
 export default function CadastroProduto() {
   const route = useRoute<CadastroProdutoRouteProp>();
+  const navigation = useNavigation();
   const produtoParaEditar = route.params?.produto;
   const fontesCarregadas = useAppFonts();
+
+  const voltarParaDashboard = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -63,7 +68,7 @@ export default function CadastroProduto() {
     Toast.show({
       type: "info",
       text1: "Funcionalidade QR Code",
-      text2: "Em breve: leitura de códigos de barras via câmera",
+      text2: "Em breve: leitura de qr code via câmera",
       position: "top",
       visibilityTime: 3000,
     });
@@ -567,6 +572,7 @@ export default function CadastroProduto() {
       <Header
         titulo={produtoParaEditar ? "Editar Produto" : "Cadastro de Produto"}
         subtitulo="Preencha os dados do produto"
+        onPressVoltar={voltarParaDashboard}
       />
 
       <ScrollView

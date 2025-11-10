@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { Op } from "sequelize";
 import ProdutoModel from "../models/ProdutosModel";
 import CategoriaModel from "../models/CategoriasModel";
 import UnidadeModel from "../models/UnidadesModel";
@@ -15,21 +16,79 @@ import {
 
 export async function buscarTodosProdutos(req: Request, res: Response) {
   try {
+    const {
+      page = "1",
+      limit = "15",
+      search = "",
+      categoria_id,
+      unidade_id,
+      filtro_estoque = "todos",
+    } = req.query;
+
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 15;
+    const offset = (pageNum - 1) * limitNum;
+
     const whereClause: any = { ativo: true };
 
     if (req.unidadePermitida !== null) {
       whereClause.unidade_id = req.unidadePermitida;
+    } else if (unidade_id) {
+      whereClause.unidade_id = parseInt(unidade_id as string);
     }
 
-    const produtos = await ProdutoModel.findAll({
+    if (categoria_id) {
+      whereClause.categoria_id = parseInt(categoria_id as string);
+    }
+    if (filtro_estoque === "baixo") {
+      whereClause[Op.and] = [
+        sequelize.literal('"quantidade_estoque" <= "quantidade_minima"'),
+      ];
+    } else if (filtro_estoque === "zerado") {
+      whereClause.quantidade_estoque = 0;
+    }
+
+    if (search && typeof search === "string" && search.trim()) {
+      const searchTerm = search.toLowerCase();
+      whereClause[Op.or] = [
+        {
+          nome: {
+            [Op.iLike]: `%${searchTerm}%`,
+          },
+        },
+        {
+          codigo_barras: {
+            [Op.iLike]: `%${searchTerm}%`,
+          },
+        },
+      ];
+    }
+
+    const { count, rows: produtos } = await ProdutoModel.findAndCountAll({
       where: whereClause,
       include: [
         { model: CategoriaModel, as: "categoria" },
         { model: UnidadeModel, as: "unidade" },
         { model: UsuarioModel, as: "usuario" },
       ],
+      limit: limitNum,
+      offset: offset,
+      order: [["criado_em", "DESC"]],
     });
-    return res.status(200).json(produtos);
+
+    const totalPages = Math.ceil(count / limitNum);
+
+    return res.status(200).json({
+      produtos,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems: count,
+        itemsPerPage: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPreviousPage: pageNum > 1,
+      },
+    });
   } catch (error: unknown) {
     return res.status(500).json({
       message: "Erro ao buscar produtos",
@@ -89,7 +148,6 @@ export async function criarProduto(req: Request, res: Response) {
       usuario_id,
     } = req.body;
 
-    // Validação de unidade de acesso
     if (!validarUnidadeAcesso(unidade_id, req)) {
       await transaction.rollback();
       return res.status(403).json({
@@ -98,7 +156,6 @@ export async function criarProduto(req: Request, res: Response) {
       });
     }
 
-    // Campos obrigatórios base
     const camposObrigatoriosBase = [
       "nome",
       "categoria_id",
@@ -118,7 +175,6 @@ export async function criarProduto(req: Request, res: Response) {
       });
     }
 
-    // Validações de valores positivos (apenas se fornecidos)
     if (preco_custo !== undefined && !valorPositivo(preco_custo)) {
       await transaction.rollback();
       return res.status(400).json({
@@ -150,7 +206,6 @@ export async function criarProduto(req: Request, res: Response) {
       });
     }
 
-    // Validação de existência
     const validacaoExistencia = await validarExistenciasPorId([
       { model: CategoriaModel, id: categoria_id, nomeCampo: "Categoria" },
       { model: UsuarioModel, id: usuario_id, nomeCampo: "Usuário" },
@@ -160,7 +215,6 @@ export async function criarProduto(req: Request, res: Response) {
       return res.status(400).json({ message: validacaoExistencia.mensagem });
     }
 
-    // Define status baseado nos preços
     const statusProduto = preco_custo && preco_venda ? "aprovado" : "pendente";
 
     const produto = await ProdutoModel.create(
@@ -240,7 +294,6 @@ export async function atualizarProduto(req: Request, res: Response) {
       }
     }
 
-    // Validação condicional: só validar campos fornecidos
     const camposParaValidar = [];
     if (categoria_id !== undefined && categoria_id !== null) {
       camposParaValidar.push({
@@ -249,7 +302,7 @@ export async function atualizarProduto(req: Request, res: Response) {
         nomeCampo: "Categoria",
       });
     }
-    // Sempre validar usuário (não editável via req.body)
+    // (não editável via req.body)
     camposParaValidar.push({
       model: UsuarioModel,
       id: produto.usuario_id,
@@ -265,7 +318,6 @@ export async function atualizarProduto(req: Request, res: Response) {
       }
     }
 
-    // Determinar o novo statusProduto: se preços forem fornecidos e o produto for "pendente", alterar para "aprovado"
     let novoStatusProduto = produto.statusProduto;
     if (
       preco_custo !== undefined &&
@@ -288,7 +340,7 @@ export async function atualizarProduto(req: Request, res: Response) {
       localizacao,
       imagem_url,
       categoria_id:
-        categoria_id !== undefined ? categoria_id : produto.categoria_id, // Usar valor existente se não fornecido
+        categoria_id !== undefined ? categoria_id : produto.categoria_id,
       unidade_id: unidade_id !== undefined ? unidade_id : produto.unidade_id,
       ativo:
         quantidade_estoque !== undefined
@@ -650,22 +702,51 @@ export async function buscarProdutosPendentes(req: Request, res: Response) {
           "Acesso negado: apenas financeiro ou gerente podem visualizar produtos pendentes.",
       });
     }
+
+    const { page = "1", limit = "15", search = "" } = req.query;
+
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 15;
+    const offset = (pageNum - 1) * limitNum;
+
     const whereClause: any = { statusProduto: "pendente", ativo: true };
+
     if (req.usuario.cargo === "financeiro" && req.usuario?.unidade_id) {
       whereClause.unidade_id = req.usuario.unidade_id;
     }
 
-    const produtos = await ProdutoModel.findAll({
+    if (search && typeof search === "string" && search.trim()) {
+      const searchTerm = search.toLowerCase();
+      whereClause.nome = {
+        [Op.iLike]: `%${searchTerm}%`,
+      };
+    }
+
+    const { count, rows: produtos } = await ProdutoModel.findAndCountAll({
       where: whereClause,
       include: [
         { model: CategoriaModel, as: "categoria" },
         { model: UnidadeModel, as: "unidade" },
         { model: UsuarioModel, as: "usuario" },
       ],
+      limit: limitNum,
+      offset: offset,
       order: [["criado_em", "DESC"]],
     });
 
-    return res.status(200).json(produtos);
+    const totalPages = Math.ceil(count / limitNum);
+
+    return res.status(200).json({
+      produtos,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems: count,
+        itemsPerPage: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPreviousPage: pageNum > 1,
+      },
+    });
   } catch (error: unknown) {
     return res.status(500).json({
       message: "Erro ao buscar produtos pendentes",

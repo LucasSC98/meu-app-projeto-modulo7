@@ -17,11 +17,18 @@ import {
 } from "react-native";
 import { Input } from "../components/Input";
 import Header from "../components/Header";
-
+import { useNavigation } from "@react-navigation/native";
+import { useCallback } from "react";
 import api from "../services/api";
 import Toast from "react-native-toast-message";
 
 export default function CadastroCategoria() {
+  const navigation = useNavigation();
+
+  const voltarParaDashboard = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
   const [fontesLoaded] = useFonts({
     NunitoSans_400Regular,
     NunitoSans_600SemiBold,
@@ -84,6 +91,7 @@ export default function CadastroCategoria() {
       <Header
         titulo="Cadastro de Categoria"
         subtitulo="Preencha os dados da categoria"
+        onPressVoltar={voltarParaDashboard}
       />
 
       <ScrollView

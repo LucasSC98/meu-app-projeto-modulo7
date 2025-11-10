@@ -11,6 +11,7 @@ import {
 import { Input } from "../components/Input";
 import { Seletor } from "../components/Seletor";
 import Header from "../components/Header";
+import { ModalConfirmacao } from "../components/ModalConfirmacao";
 import api from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
@@ -47,6 +48,8 @@ export default function CadastroMovimentacao() {
 
   const [carregandoDados, setCarregandoDados] = useState(true);
   const [salvando, setSalvando] = useState(false);
+
+  const [modalConfirmacaoVisivel, setModalConfirmacaoVisivel] = useState(false);
 
   useEffect(() => {
     verificarLogin();
@@ -126,10 +129,10 @@ export default function CadastroMovimentacao() {
         api.get("/unidades"),
       ]);
 
-      const produtosAtivos = Array.isArray(responseProdutos.data)
-        ? responseProdutos.data.filter(
-            (produto: any) => produto.quantidade_estoque > 0
-          )
+      const listaProdutos =
+        responseProdutos.data?.produtos || responseProdutos.data || [];
+      const produtosAtivos = Array.isArray(listaProdutos)
+        ? listaProdutos.filter((produto: any) => produto.ativo === true)
         : [];
 
       setProdutos(produtosAtivos);
@@ -138,7 +141,7 @@ export default function CadastroMovimentacao() {
         Array.isArray(responseUnidades.data) ? responseUnidades.data : []
       );
     } catch (error: any) {
-      console.error("Erro ao carregar dados:", error);
+      console.error("Detalhes do erro:", error.response?.data || error.message);
       Toast.show({
         type: "error",
         text1: "Erro de Conexão",
@@ -182,7 +185,7 @@ export default function CadastroMovimentacao() {
     );
   }
 
-  async function salvarMovimentacao() {
+  function validarFormulario(): boolean {
     if (!unidadeOrigemSelecionada) {
       Toast.show({
         type: "error",
@@ -191,7 +194,7 @@ export default function CadastroMovimentacao() {
         position: "top",
         visibilityTime: 3000,
       });
-      return;
+      return false;
     }
 
     if (!produtoSelecionado) {
@@ -202,7 +205,7 @@ export default function CadastroMovimentacao() {
         position: "top",
         visibilityTime: 3000,
       });
-      return;
+      return false;
     }
 
     if (!quantidade || parseFloat(quantidade) <= 0) {
@@ -213,7 +216,7 @@ export default function CadastroMovimentacao() {
         position: "top",
         visibilityTime: 3000,
       });
-      return;
+      return false;
     }
 
     if (tipo === "TRANSFERENCIA" && !unidadeDestinoSelecionada) {
@@ -224,9 +227,85 @@ export default function CadastroMovimentacao() {
         position: "top",
         visibilityTime: 3000,
       });
-      return;
+      return false;
     }
 
+    return true;
+  }
+
+  function confirmarMovimentacao() {
+    if (validarFormulario()) {
+      setModalConfirmacaoVisivel(true);
+    }
+  }
+
+  function cancelarMovimentacao() {
+    setModalConfirmacaoVisivel(false);
+  }
+
+  function gerarMensagemConfirmacao(): string {
+    const tipoTexto = getTipoTexto(tipo);
+    const produto = produtoSelecionado?.nome || "";
+    const qtd = quantidade;
+    const unidadeOrigem = unidadeOrigemSelecionada?.nome || "";
+    const unidadeDestino = unidadeDestinoSelecionada?.nome || "";
+
+    let mensagem = `Confirma a ${tipoTexto.toLowerCase()} de ${qtd} unidades do produto "${produto}"?`;
+
+    if (tipo === "TRANSFERENCIA") {
+      mensagem += `\n\nDe: ${unidadeOrigem}\nPara: ${unidadeDestino}`;
+    } else {
+      mensagem += `\n\nUnidade: ${unidadeOrigem}`;
+    }
+
+    if (observacao.trim()) {
+      mensagem += `\n\nObservação: ${observacao.trim()}`;
+    }
+
+    if (documento.trim()) {
+      mensagem += `\nDocumento: ${documento.trim()}`;
+    }
+
+    return mensagem;
+  }
+
+  function obterIconeMovimentacao():
+    | "add-circle"
+    | "remove-circle"
+    | "swap-horiz"
+    | "edit"
+    | "inventory"
+    | undefined {
+    switch (tipo) {
+      case "ENTRADA":
+        return "add-circle";
+      case "SAIDA":
+        return "remove-circle";
+      case "TRANSFERENCIA":
+        return "swap-horiz";
+      case "AJUSTE":
+        return "edit";
+      default:
+        return "inventory";
+    }
+  }
+
+  function obterCorMovimentacao(): string {
+    switch (tipo) {
+      case "ENTRADA":
+        return "#4CAF50";
+      case "SAIDA":
+        return "#F44336";
+      case "TRANSFERENCIA":
+        return "#2196F3";
+      case "AJUSTE":
+        return "#FF9800";
+      default:
+        return "#2196F3";
+    }
+  }
+
+  async function salvarMovimentacao() {
     try {
       setSalvando(true);
 
@@ -298,6 +377,7 @@ export default function CadastroMovimentacao() {
       }
     } finally {
       setSalvando(false);
+      setModalConfirmacaoVisivel(false);
     }
   }
 
@@ -422,7 +502,7 @@ export default function CadastroMovimentacao() {
 
           <TouchableOpacity
             style={[styles.botaoSalvar, salvando && styles.botaoDesabilitado]}
-            onPress={salvarMovimentacao}
+            onPress={confirmarMovimentacao}
             disabled={salvando}
             accessibilityLabel="Salvar movimentação"
             accessibilityRole="button"
@@ -433,6 +513,18 @@ export default function CadastroMovimentacao() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <ModalConfirmacao
+        visivel={modalConfirmacaoVisivel}
+        titulo={`Confirmar ${getTipoTexto(tipo)}`}
+        mensagem={gerarMensagemConfirmacao()}
+        textoBotaoConfirmar={salvando ? "Salvando..." : "Confirmar"}
+        textoBotaoCancelar="Cancelar"
+        corBotaoConfirmar={obterCorMovimentacao()}
+        iconeBotaoConfirmar={obterIconeMovimentacao()}
+        onConfirmar={salvarMovimentacao}
+        onCancelar={cancelarMovimentacao}
+        carregando={salvando}
+      />
     </KeyboardAvoidingView>
   );
 }
