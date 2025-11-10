@@ -26,7 +26,6 @@ export async function criarMovimentacao(req: Request, res: Response) {
 
   const usuarioId = usuario_id || req.usuarioId;
 
-  // Validações iniciais
   const camposObrigatorios = ["tipo", "quantidade", "produto_id"];
   const camposFaltando = validarCamposObrigatorios(
     { tipo, quantidade, produto_id, usuario_id: usuarioId },
@@ -52,7 +51,6 @@ export async function criarMovimentacao(req: Request, res: Response) {
     });
   }
 
-  // Validações específicas para TRANSFERENCIA
   if (tipo === "TRANSFERENCIA") {
     const camposTransferencia = ["unidade_destino_id"];
     const camposFaltandoTransferencia = validarCamposObrigatorios(
@@ -85,7 +83,6 @@ export async function criarMovimentacao(req: Request, res: Response) {
   const transaction = await sequelize.transaction();
 
   try {
-    // Verificar existência de produto, usuário e unidades
     const validacaoExistencia = await validarExistenciasPorId([
       { model: ProdutoModel, id: produto_id, nomeCampo: "Produto" },
       { model: UsuarioModel, id: usuarioId, nomeCampo: "Usuário" },
@@ -116,7 +113,6 @@ export async function criarMovimentacao(req: Request, res: Response) {
       return res.status(404).json({ message: "Produto não encontrado" });
     }
 
-    // Validações de negócio
     if (tipo === "SAIDA" && produto.quantidade_estoque < quantidade) {
       await transaction.rollback();
       return res.status(400).json({
@@ -178,11 +174,6 @@ export async function criarMovimentacao(req: Request, res: Response) {
         if (produtoDestino) {
           const novaQuantidadeDestino =
             produtoDestino.quantidade_estoque + quantidade;
-          console.log("Atualizando produto existente:", {
-            produto_id: produtoDestino.id,
-            quantidade_atual: produtoDestino.quantidade_estoque,
-            nova_quantidade: novaQuantidadeDestino,
-          });
 
           await produtoDestino.update(
             {
@@ -250,8 +241,9 @@ export async function buscarMovimentacoes(req: Request, res: Response) {
     unidade_id,
     data_inicio,
     data_fim,
+    search,
     page = 1,
-    limit = 20,
+    limit = 10,
   } = req.query;
 
   try {
@@ -278,17 +270,32 @@ export async function buscarMovimentacoes(req: Request, res: Response) {
       };
     }
 
+    const includeOptions: any[] = [
+      { model: ProdutoModel, as: "produto" },
+      { model: UsuarioModel, as: "usuario" },
+      { model: UnidadeModel, as: "unidade_origem" },
+      { model: UnidadeModel, as: "unidade_destino" },
+    ];
+
+    if (search && typeof search === "string" && search.trim()) {
+      const searchTerm = search.trim();
+      whereClause[Op.or] = [
+        ...(whereClause[Op.or] || []),
+        { observacao: { [Op.iLike]: `%${searchTerm}%` } },
+        { documento: { [Op.iLike]: `%${searchTerm}%` } },
+        { "$produto.nome$": { [Op.iLike]: `%${searchTerm}%` } },
+        { "$usuario.nome$": { [Op.iLike]: `%${searchTerm}%` } },
+        { "$unidade_origem.nome$": { [Op.iLike]: `%${searchTerm}%` } },
+        { "$unidade_destino.nome$": { [Op.iLike]: `%${searchTerm}%` } },
+      ];
+    }
+
     const offset = (Number(page) - 1) * Number(limit);
 
     const { count, rows: movimentacoes } =
       await MovimentacaoModel.findAndCountAll({
         where: whereClause,
-        include: [
-          { model: ProdutoModel, as: "produto" },
-          { model: UsuarioModel, as: "usuario" },
-          { model: UnidadeModel, as: "unidade_origem" },
-          { model: UnidadeModel, as: "unidade_destino" },
-        ],
+        include: includeOptions,
         order: [["data_movimentacao", "DESC"]],
         limit: Number(limit),
         offset,
