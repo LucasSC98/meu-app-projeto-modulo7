@@ -13,6 +13,7 @@ import Movimentacoes from "./src/screens/Movimentacoes";
 import CadastroMovimentacao from "./src/screens/CadastroMovimentacao";
 import UsuariosSistema from "./src/screens/UsuariosSistema";
 import Financeiro from "./src/screens/Financeiro";
+import RelatorioCurvaABC from "./src/screens/RelatorioCurvaABC";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "./src/config/toastConfig.jsx";
 
@@ -86,6 +87,11 @@ export default function App() {
           <Stack.Screen
             name="Financeiro"
             component={Financeiro}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="RelatorioCurvaABC"
+            component={RelatorioCurvaABC}
             options={{ headerShown: false }}
           />
         </Stack.Navigator>

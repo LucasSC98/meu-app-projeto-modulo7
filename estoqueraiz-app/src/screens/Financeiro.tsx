@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,9 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  RefreshControl,
+  ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import api from "../services/api";
+import api, {
+  getProdutosPaginados,
+  getProdutosPendentesPaginados,
+} from "../services/api";
 import Toast from "react-native-toast-message";
 import { Input } from "../components/Input";
 import Header from "../components/Header";
@@ -36,7 +42,22 @@ export default function ProdutosFinanceiro() {
   const [produtosTodos, setProdutosTodos] = useState<Produto[]>([]);
   const [produtosPendentes, setProdutosPendentes] = useState<Produto[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [abaAtiva, setAbaAtiva] = useState<"todos" | "pendentes">("pendentes"); // Aba "Pendentes" ativa por padrão
+  const [atualizando, setAtualizando] = useState(false);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [pesquisando, setPesquisando] = useState(false);
+  const [abaAtiva, setAbaAtiva] = useState<"todos" | "pendentes">("pendentes");
+
+  // paginação
+  const [paginaAtualTodos, setPaginaAtualTodos] = useState(1);
+  const [paginaAtualPendentes, setPaginaAtualPendentes] = useState(1);
+  const [totalItensTodos, setTotalItensTodos] = useState(0);
+  const [totalItensPendentes, setTotalItensPendentes] = useState(0);
+  const [temMaisPaginasTodos, setTemMaisPaginasTodos] = useState(false);
+  const [temMaisPaginasPendentes, setTemMaisPaginasPendentes] = useState(false);
+  const ITENS_POR_PAGINA = 15;
+
+  const [termoPesquisa, setTermoPesquisa] = useState("");
+
   const [precosEditando, setPrecosEditando] = useState<{
     [key: number]: { custo: string; venda: string };
   }>({});
@@ -44,26 +65,129 @@ export default function ProdutosFinanceiro() {
     [key: number]: { custo: string; venda: string };
   }>({});
 
-  useEffect(() => {
-    carregarProdutos();
-  }, []);
+  function resetarPaginacao() {
+    if (abaAtiva === "todos") {
+      setPaginaAtualTodos(1);
+      setProdutosTodos([]);
+    } else {
+      setPaginaAtualPendentes(1);
+      setProdutosPendentes([]);
+    }
+  }
 
-  async function carregarProdutos() {
+  const carregarProdutosPaginados = useCallback(
+    async (
+      pagina?: number,
+      substituir: boolean = false,
+      ehPesquisa: boolean = false
+    ) => {
+      const paginaAtual =
+        pagina ||
+        (abaAtiva === "todos" ? paginaAtualTodos : paginaAtualPendentes);
+      try {
+        if (ehPesquisa) {
+        } else if (pagina === 1 || !pagina) {
+          setCarregando(true);
+        } else {
+          setCarregandoMais(true);
+        }
+
+        const parametros = {
+          page: paginaAtual,
+          limit: ITENS_POR_PAGINA,
+          search: termoPesquisa.trim() || undefined,
+        };
+
+        let response;
+        if (abaAtiva === "todos") {
+          response = await getProdutosPaginados(parametros);
+        } else {
+          response = await getProdutosPendentesPaginados(parametros);
+        }
+
+        if (response.produtos || response.data) {
+          const produtosRaw = response.produtos || response.data || response;
+
+          const produtos = Array.isArray(produtosRaw)
+            ? produtosRaw.filter((p) => p && p.id != null)
+            : [];
+          const removerDuplicatas = (
+            lista: Produto[],
+            novosProdutos: Produto[]
+          ) => {
+            const idsExistentes = new Set(lista.map((p) => p.id));
+            const produtosFiltrados = novosProdutos.filter(
+              (p) => !idsExistentes.has(p.id)
+            );
+
+            return [...lista, ...produtosFiltrados];
+          };
+
+          if (abaAtiva === "todos") {
+            if (substituir || paginaAtual === 1) {
+              setProdutosTodos(produtos);
+            } else {
+              setProdutosTodos((prev) => removerDuplicatas(prev, produtos));
+            }
+
+            if (response.pagination) {
+              setPaginaAtualTodos(response.pagination.currentPage);
+              setTotalItensTodos(response.pagination.totalItems);
+              setTemMaisPaginasTodos(response.pagination.hasNextPage);
+            }
+          } else {
+            if (substituir || paginaAtual === 1) {
+              setProdutosPendentes(produtos);
+            } else {
+              setProdutosPendentes((prev) => removerDuplicatas(prev, produtos));
+            }
+
+            if (response.pagination) {
+              setPaginaAtualPendentes(response.pagination.currentPage);
+              setTotalItensPendentes(response.pagination.totalItems);
+              setTemMaisPaginasPendentes(response.pagination.hasNextPage);
+            }
+          }
+        }
+      } catch (error: any) {
+        const mensagemErro =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          "Erro desconhecido ao carregar produtos";
+
+        Toast.show({
+          type: "error",
+          text1: "Erro",
+          text2: mensagemErro,
+          position: "top",
+          visibilityTime: 4000,
+        });
+      } finally {
+        if (!ehPesquisa) {
+          setCarregando(false);
+        }
+        setCarregandoMais(false);
+      }
+    },
+    [
+      abaAtiva,
+      paginaAtualTodos,
+      paginaAtualPendentes,
+      termoPesquisa,
+      ITENS_POR_PAGINA,
+    ]
+  );
+
+  const carregarDadosIniciais = useCallback(async () => {
     try {
       setCarregando(true);
-      // Carregar todos os produtos (conforme hierarquia)
-      const respostaTodos = await api.get("/produtos");
-      setProdutosTodos(respostaTodos.data);
-
-      // Carregar produtos pendentes
-      const respostaPendentes = await api.get("/produtos/pendentes");
-      setProdutosPendentes(respostaPendentes.data);
+      await carregarProdutosPaginados();
     } catch (error: any) {
       const mensagemErro =
         error.response?.data?.message ||
         error.response?.data?.error ||
         "Erro desconhecido ao carregar produtos";
-      console.error("Erro ao carregar produtos:", error.response?.data);
+      console.error("Erro ao carregar dados iniciais:", error.response?.data);
       Toast.show({
         type: "error",
         text1: "Erro",
@@ -73,6 +197,54 @@ export default function ProdutosFinanceiro() {
       });
     } finally {
       setCarregando(false);
+    }
+  }, [carregarProdutosPaginados]);
+
+  useEffect(() => {
+    carregarDadosIniciais();
+  }, [carregarDadosIniciais]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      if (!pesquisando) {
+        setPesquisando(true);
+      }
+      resetarPaginacao();
+      await carregarProdutosPaginados(1, true, true);
+      setPesquisando(false);
+    }, 800);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termoPesquisa]);
+  useEffect(() => {
+    resetarPaginacao();
+    carregarProdutosPaginados();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abaAtiva]);
+
+  async function atualizarLista() {
+    try {
+      setAtualizando(true);
+      resetarPaginacao();
+      await carregarProdutosPaginados(1, true);
+    } catch (error) {
+      console.error("Erro ao atualizar lista:", error);
+    } finally {
+      setAtualizando(false);
+    }
+  }
+
+  function carregarMaisProdutos() {
+    const temMais =
+      abaAtiva === "todos" ? temMaisPaginasTodos : temMaisPaginasPendentes;
+    const proximaPagina =
+      abaAtiva === "todos" ? paginaAtualTodos + 1 : paginaAtualPendentes + 1;
+
+    if (temMais && !carregandoMais && !carregando) {
+      carregarProdutosPaginados(proximaPagina, false);
     }
   }
 
@@ -103,7 +275,8 @@ export default function ProdutosFinanceiro() {
         visibilityTime: 3000,
       });
 
-      carregarProdutos();
+      resetarPaginacao();
+      await carregarProdutosPaginados(1, true);
     } catch (error: any) {
       console.error("Erro ao aprovar produto:", error.response?.data);
       const mensagem =
@@ -144,7 +317,8 @@ export default function ProdutosFinanceiro() {
         delete novosPrecos[produtoId];
         return novosPrecos;
       });
-      carregarProdutos();
+      resetarPaginacao();
+      await carregarProdutosPaginados(1, true);
     } catch (error: any) {
       console.error("Erro ao atualizar preços:", error.response?.data);
       const mensagem =
@@ -211,7 +385,31 @@ export default function ProdutosFinanceiro() {
   const produtosAtivos =
     abaAtiva === "todos" ? produtosTodos : produtosPendentes;
 
-  if (carregando) {
+  const renderizarComponenteVazio = () => (
+    <View style={styles.emptyContainer}>
+      <MaterialIcons name="check-circle" size={64} color="#10b981" />
+      <Text style={styles.emptyText}>
+        {abaAtiva === "todos"
+          ? "Nenhum produto encontrado"
+          : "Nenhum produto pendente"}
+      </Text>
+    </View>
+  );
+
+  const renderizarFooterCarregamento = () => {
+    if (!carregandoMais) return null;
+
+    return (
+      <View style={styles.footerCarregamento}>
+        <ActivityIndicator size="small" color="#059669" />
+        <Text style={styles.textoCarregandoMais}>
+          Carregando mais produtos...
+        </Text>
+      </View>
+    );
+  };
+
+  if (carregando && produtosAtivos.length === 0) {
     return (
       <View style={styles.container}>
         <Text style={styles.loadingText}>Carregando produtos...</Text>
@@ -225,8 +423,8 @@ export default function ProdutosFinanceiro() {
         titulo="Financeiro"
         subtitulo={
           abaAtiva === "pendentes"
-            ? `${produtosPendentes.length} produto(s) pendente(s)`
-            : `${produtosTodos.length} produto(s) total`
+            ? `${totalItensPendentes} produto(s) pendente(s)`
+            : `${totalItensTodos} produto(s) total`
         }
         onPressVoltar={() => navegacao.goBack()}
         botaoDireita={
@@ -237,8 +435,6 @@ export default function ProdutosFinanceiro() {
           </View>
         }
       />
-
-      {/* Abas movidas para baixo do header */}
       <View style={styles.abasContainer}>
         <TouchableOpacity
           style={[styles.aba, abaAtiva === "pendentes" && styles.abaAtiva]}
@@ -273,21 +469,41 @@ export default function ProdutosFinanceiro() {
         </TouchableOpacity>
       </View>
 
-      {produtosAtivos.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialIcons name="check-circle" size={64} color="#10b981" />
-          <Text style={styles.emptyText}>
-            {abaAtiva === "todos"
-              ? "Nenhum produto encontrado"
-              : "Nenhum produto pendente"}
-          </Text>
-        </View>
+      <View style={styles.barraPesquisa}>
+        <MaterialIcons name="search" size={20} color="#666" />
+        <TextInput
+          style={styles.inputPesquisa}
+          placeholder="Pesquisar produtos..."
+          value={termoPesquisa}
+          onChangeText={setTermoPesquisa}
+        />
+        {pesquisando && <ActivityIndicator size="small" color="#059669" />}
+        {termoPesquisa.length > 0 && !pesquisando && (
+          <TouchableOpacity onPress={() => setTermoPesquisa("")}>
+            <MaterialIcons name="clear" size={20} color="#666" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {produtosAtivos.length === 0 && !carregando && !pesquisando ? (
+        renderizarComponenteVazio()
       ) : (
         <FlatList
           data={produtosAtivos}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item, index) =>
+            item?.id ? `produto-${item.id}` : `item-${index}`
+          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={atualizando}
+              onRefresh={atualizarLista}
+            />
+          }
+          onEndReached={carregarMaisProdutos}
+          onEndReachedThreshold={0.1}
+          ListFooterComponent={renderizarFooterCarregamento}
           renderItem={({ item }) => (
             <View style={styles.produtoCard}>
               <View style={styles.produtoHeader}>
@@ -310,7 +526,6 @@ export default function ProdutosFinanceiro() {
                 Data: {new Date(item.criado_em).toLocaleDateString("pt-BR")}
               </Text>
 
-              {/* Mostrar preços apenas na aba "Todos" */}
               {abaAtiva === "todos" && (
                 <>
                   <Text style={styles.produtoInfo}>
@@ -336,7 +551,6 @@ export default function ProdutosFinanceiro() {
                       : "Pendente"}
                   </Text>
 
-                  {/* Edição de preços na aba "Todos" para produtos aprovados */}
                   {item.statusProduto === "aprovado" &&
                     (precosEditandoTodos[item.id] ? (
                       <View style={styles.precosContainer}>
@@ -408,7 +622,6 @@ export default function ProdutosFinanceiro() {
                 </>
               )}
 
-              {/* Edição de preços apenas na aba "Pendentes" */}
               {abaAtiva === "pendentes" &&
                 (precosEditando[item.id] ? (
                   <View style={styles.precosContainer}>
@@ -481,7 +694,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
 
-  // ÍCONE DO HEADER
   headerIcone: {
     alignItems: "center",
   },
@@ -496,7 +708,6 @@ const styles = StyleSheet.create({
     borderColor: "#d1fae5",
   },
 
-  // ABAS MOVIDAS PARA FORA DO HEADER
   abasContainer: {
     flexDirection: "row",
     backgroundColor: "#f8fafc",
@@ -555,8 +766,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: "NunitoSans_700Bold",
   },
-
-  // RESTANTE DOS ESTILOS (cards, loading, etc.)
   loadingText: {
     fontSize: 16,
     color: "#6B7280",
@@ -702,5 +911,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#2196F3",
     fontFamily: "NunitoSans_600SemiBold",
+  },
+  barraPesquisa: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    gap: 12,
+  },
+  inputPesquisa: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1e293b",
+    paddingVertical: 0,
+  },
+  footerCarregamento: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  textoCarregandoMais: {
+    fontSize: 14,
+    color: "#666",
+    fontStyle: "italic",
   },
 });

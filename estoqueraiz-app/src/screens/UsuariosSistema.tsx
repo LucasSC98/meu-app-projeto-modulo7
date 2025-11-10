@@ -366,7 +366,6 @@ export default function UsuariosSistema() {
               }
               opcoes={opcoesUnidade}
               aoMudarValor={(value) => {
-                console.log("Unidade selecionada:", value);
                 const id = value?.id;
                 if (id === "") {
                   setFiltroUnidade(null);

@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
@@ -36,6 +37,17 @@ export default function MapaUnidades() {
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [processandoToque, setProcessandoToque] = useState<number | null>(null);
+  const [ehGerente, setEhGerente] = useState(false);
+
+  const verificarCargoUsuario = React.useCallback(async () => {
+    try {
+      const cargo = await AsyncStorage.getItem("cargo");
+      setEhGerente(cargo === "gerente");
+    } catch (error) {
+      console.error("Erro ao verificar cargo do usuário:", error);
+      setEhGerente(false);
+    }
+  }, []);
 
   const carregarUnidades = React.useCallback(async () => {
     try {
@@ -57,8 +69,9 @@ export default function MapaUnidades() {
   }, []);
 
   useEffect(() => {
+    verificarCargoUsuario();
     carregarUnidades();
-  }, [carregarUnidades]);
+  }, [verificarCargoUsuario, carregarUnidades]);
 
   const abrirNoMapa = React.useCallback(
     async (unidade: Unidade) => {
@@ -124,16 +137,18 @@ export default function MapaUnidades() {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.botaoCadastro}
-            onPress={() => navigation.navigate("CadastroUnidade")}
-            activeOpacity={0.8}
-          >
-            <View style={styles.iconeCadastroContainer}>
-              <MaterialIcons name="add-business" size={20} color="#059669" />
-            </View>
-            <Text style={styles.textoCadastro}>Nova Unidade</Text>
-          </TouchableOpacity>
+          {ehGerente && (
+            <TouchableOpacity
+              style={styles.botaoCadastro}
+              onPress={() => navigation.navigate("CadastroUnidade")}
+              activeOpacity={0.8}
+            >
+              <View style={styles.iconeCadastroContainer}>
+                <MaterialIcons name="add-business" size={20} color="#059669" />
+              </View>
+              <Text style={styles.textoCadastro}>Nova Unidade</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
